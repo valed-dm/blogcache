@@ -177,3 +177,11 @@ temp/
 .cursor-server/
 .vscode-remote/
 .cursor-remote/
+
+# Keep empty directories structure
+logs/*
+!logs/.gitkeep
+media/*
+!media/.gitkeep
+static/*
+!static/.gitkeep
