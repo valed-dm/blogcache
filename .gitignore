@@ -1,0 +1,179 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+.env/
+myenv/
+virtualenv/
+
+# IDE
+.vscode/
+.cursor/
+.idea/
+*.sublime-*
+*.swp
+*.swo
+*~
+
+# Python distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+test_results/
+
+# Database & migrations
+*.db
+*.sqlite3
+*.sqlite
+instance/
+*.db-journal
+
+# Project specific - cache and local files
+*.log
+*.pid
+*.seed
+*.pid.lock
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Docker
+*.pid
+docker-compose.override.yml
+.docker/
+docker-compose.local.yml
+
+# Redis dumps
+dump.rdb
+
+# alembic/versions/* exclude .pyc files in there
+alembic/versions/*.pyc
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs and databases
+*.log
+*.sql
+*.sql-journal
+
+# Project specific exclusions
+# Exclude all local configs but keep example
+config/local.py
+*.local.yaml
+
+# Secrets and keys
+*.pem
+*.key
+*.crt
+
+# Jupyter notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+*.cover
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# pytype
+.pytype/
+
+# celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Project specific - local overrides
+docker-compose.override.yml
+*.local.yml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# VS Code and Cursor
+.vscode-server/
+.cursor-server/
+.vscode-remote/
+.cursor-remote/

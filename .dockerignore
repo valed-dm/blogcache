@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.cursor/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.env
+.venv
+venv/
+env/
+
+# Local
+.DS_Store
+*.log
+*.sqlite3
+dump.rdb
+
+# Tests
+tests/
+test_*.py
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Preserve directory structure for volumes
+logs/*
+!logs/.gitkeep
+media/*
+!media/.gitkeep
+static/*
+!static/.gitkeep
