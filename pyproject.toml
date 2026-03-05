@@ -25,6 +25,33 @@ mypy = "^1.19.1"
 black = "^26.1.0"
 isort = "^8.0.1"
 ruff = "^0.15.4"
+pre-commit = "==4.5.1"
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+ select = [
+  "E", # pycodestyle errors
+  "F", # pyflakes
+  "W", # pycodestyle warnings
+  "I", # isort
+  "B", # flake8-bugbear
+  "Q", # flake8-quotes
+  "C4", # flake8-comprehensions
+  "SIM", # flake8-simplify
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+force-single-line = true
+lines-after-imports = 2
+force-sort-within-sections = true
 
 [tool.mypy]
 python_version = "3.12"
