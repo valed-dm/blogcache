@@ -1,16 +1,20 @@
+import asyncio
 import json
+import logging
 from typing import Optional
 
 from redis.asyncio import Redis
 from sqlalchemy import delete
 from sqlalchemy import select
-from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.post import Post
 from ..schemas.post import PostCreate
 from ..schemas.post import PostResponse
 from ..schemas.post import PostUpdate
+
+
+logger = logging.getLogger(__name__)
 
 
 class PostService:
@@ -33,43 +37,59 @@ class PostService:
 
     async def get_post(self, post_id: int) -> Optional[PostResponse]:
         """Get post by ID with caching (Cache-Aside pattern)"""
-        # Cache first
-        cached = await self.redis.get(self._cache_key(post_id))
-        if cached:
-            post_data = json.loads(cached)
-            # Increment views in background
-            await self._increment_views_in_background(post_id)
-            return PostResponse(**post_data)
+        try:
+            cached = await self.redis.get(self._cache_key(post_id))
+            if cached:
+                asyncio.create_task(self._increment_views_in_background(post_id))
+                return PostResponse(**json.loads(cached))
+        except Exception as e:
+            logger.error(f"Redis error in get_post: {e}")
 
-        # No Cache - get from DB
         result = await self.db.execute(select(Post).where(Post.id == post_id))
         db_post = result.scalar_one_or_none()
 
         if not db_post:
             return None
 
-        # Update views
-        db_post.views += 1
+        from sqlalchemy import text
+
+        await self.db.execute(
+            text("UPDATE posts SET views = views + 1 WHERE id = :id"),
+            {"id": post_id},
+        )
         await self.db.commit()
         await self.db.refresh(db_post)
 
-        # Store in cache
         post_response = PostResponse.model_validate(db_post)
-        await self.redis.setex(
-            self._cache_key(post_id), self.cache_ttl, post_response.model_dump_json()
-        )
+        try:
+            await self.redis.setex(
+                self._cache_key(post_id),
+                self.cache_ttl,
+                post_response.model_dump_json(),
+            )
+        except Exception as e:
+            logger.error(f"Redis error in setex: {e}")
 
         return post_response
 
     async def _increment_views_in_background(self, post_id: int):
-        """Increment views in DB without blocking response"""
+        """Increment views atomically using raw SQL with separate session"""
         try:
-            await self.db.execute(
-                update(Post).where(Post.id == post_id).values(views=Post.views + 1)
-            )
-            await self.db.commit()
-        except Exception:
-            await self.db.rollback()
+            from sqlalchemy import text
+            from sqlalchemy.ext.asyncio import async_sessionmaker
+
+            from ..core.database import engine
+
+            AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text("UPDATE posts SET views = views + 1 WHERE id = :id"),
+                    {"id": post_id},
+                )
+                await session.commit()
+        except Exception as e:
+            logger.error(f"Error incrementing views: {e}")
 
     async def update_post(
         self, post_id: int, post_data: PostUpdate
