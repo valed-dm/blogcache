@@ -73,7 +73,7 @@ class PostService:
         return post_response
 
     async def _increment_views_in_background(self, post_id: int):
-        """Increment views atomically using raw SQL with separate session"""
+        """Increment views atomically and invalidate cache"""
         try:
             from sqlalchemy import text
             from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -88,6 +88,8 @@ class PostService:
                     {"id": post_id},
                 )
                 await session.commit()
+
+            await self.redis.delete(self._cache_key(post_id))
         except Exception as e:
             logger.error(f"Error incrementing views: {e}")
 
