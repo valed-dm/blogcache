@@ -35,6 +35,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY --chown=appuser:appuser . .
 
+COPY scripts/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 USER appuser
 
 EXPOSE 8000
@@ -42,4 +45,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/health')"
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["uvicorn", "src.blogcache.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -23,6 +23,10 @@ COPY . .
 
 RUN poetry install --no-interaction --no-ansi --only-root
 
+COPY scripts/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 8000
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["uvicorn", "src.blogcache.main:app", "--host", "0.0.0.0", "--port", "8000"]

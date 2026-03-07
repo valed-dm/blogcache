@@ -53,7 +53,11 @@ services:
       - ./src:/app/src:ro
       - ./alembic:/app/alembic:ro
       - ./alembic.ini:/app/alembic.ini:ro
-    command: uvicorn src.blogcache.main:app --host 0.0.0.0 --port 8000 --reload
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        alembic upgrade head
+        uvicorn src.blogcache.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - blogcache_network
     restart: unless-stopped
