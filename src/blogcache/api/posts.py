@@ -53,7 +53,11 @@ async def read_post(
     service: Annotated[PostService, Depends(get_post_service)],
 ):
     """Get post by ID (with caching and unique view tracking)"""
-    client_ip = request.client.host if request.client else "unknown"
+    # Check X-Forwarded-For header first (for proxies/load balancers)
+    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    if not client_ip:
+        client_ip = request.client.host if request.client else "unknown"
+
     post = await service.get_post(post_id, client_ip)
     if not post:
         raise HTTPException(
