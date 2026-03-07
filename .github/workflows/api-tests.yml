@@ -45,23 +45,6 @@ jobs:
             sleep 2
           done
 
-          # Verify API is responding
-          echo "Health check:"
-          curl http://localhost:8000/health
-          echo ""
-
-          # Test creating a post
-          echo "Creating test post:"
-          curl -X POST http://localhost:8000/posts/ \
-            -H "Content-Type: application/json" \
-            -d '{"title":"Test","content":"Test content","author":"Tester"}'
-          echo ""
-
-          # Test getting the post
-          echo "Getting post by ID:"
-          curl http://localhost:8000/posts/1
-          echo ""
-
       - name: Install Newman
         run: npm install -g newman
 
