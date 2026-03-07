@@ -27,6 +27,10 @@ class PostService:
     def _cache_key(self, post_id: int) -> str:
         return f"{self.cache_prefix}{post_id}"
 
+    def _view_key(self, post_id: int, client_ip: str) -> str:
+        """Generate Redis key for tracking unique views"""
+        return f"view:{post_id}:{client_ip}"
+
     async def create_post(self, post_data: PostCreate) -> PostResponse:
         """Create a new post"""
         db_post = Post(**post_data.model_dump())
@@ -35,12 +39,16 @@ class PostService:
         await self.db.refresh(db_post)
         return PostResponse.model_validate(db_post)
 
-    async def get_post(self, post_id: int) -> Optional[PostResponse]:
-        """Get post by ID with caching (Cache-Aside pattern)"""
+    async def get_post(
+        self, post_id: int, client_ip: str = "unknown"
+    ) -> Optional[PostResponse]:
+        """Get post by ID with caching and unique view tracking"""
         try:
             cached = await self.redis.get(self._cache_key(post_id))
             if cached:
-                asyncio.create_task(self._increment_views_in_background(post_id))
+                asyncio.create_task(
+                    self._increment_views_in_background(post_id, client_ip)
+                )
                 return PostResponse(**json.loads(cached))
         except Exception as e:
             logger.error(f"Redis error in get_post: {e}")
@@ -51,14 +59,16 @@ class PostService:
         if not db_post:
             return None
 
-        from sqlalchemy import text
+        should_increment = await self._should_increment_view(post_id, client_ip)
+        if should_increment:
+            from sqlalchemy import text
 
-        await self.db.execute(
-            text("UPDATE posts SET views = views + 1 WHERE id = :id"),
-            {"id": post_id},
-        )
-        await self.db.commit()
-        await self.db.refresh(db_post)
+            await self.db.execute(
+                text("UPDATE posts SET views = views + 1 WHERE id = :id"),
+                {"id": post_id},
+            )
+            await self.db.commit()
+            await self.db.refresh(db_post)
 
         post_response = PostResponse.model_validate(db_post)
         try:
@@ -72,9 +82,27 @@ class PostService:
 
         return post_response
 
-    async def _increment_views_in_background(self, post_id: int):
-        """Increment views atomically and invalidate cache"""
+    async def _should_increment_view(self, post_id: int, client_ip: str) -> bool:
+        """Check if view should be counted (once per IP per 24h)"""
         try:
+            view_key = self._view_key(post_id, client_ip)
+            exists = await self.redis.exists(view_key)
+
+            if not exists:
+                await self.redis.setex(view_key, 86400, "1")  # 24 hours
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Redis error in _should_increment_view: {e}")
+            return True  # Fallback: count the view
+
+    async def _increment_views_in_background(self, post_id: int, client_ip: str):
+        """Increment views atomically if unique and invalidate cache"""
+        try:
+            should_increment = await self._should_increment_view(post_id, client_ip)
+            if not should_increment:
+                return
+
             from sqlalchemy import text
             from sqlalchemy.ext.asyncio import async_sessionmaker
 

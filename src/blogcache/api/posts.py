@@ -4,6 +4,7 @@ from typing import List
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import Request
 from fastapi import status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,10 +49,12 @@ async def read_posts(
 @router.get("/{post_id}", response_model=PostResponse)
 async def read_post(
     post_id: int,
+    request: Request,
     service: Annotated[PostService, Depends(get_post_service)],
 ):
-    """Get post by ID (with caching)"""
-    post = await service.get_post(post_id)
+    """Get post by ID (with caching and unique view tracking)"""
+    client_ip = request.client.host if request.client else "unknown"
+    post = await service.get_post(post_id, client_ip)
     if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Post not found"

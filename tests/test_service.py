@@ -16,7 +16,7 @@ async def test_service_create_post(db_session, redis_client):
 async def test_service_get_post_not_found(db_session, redis_client):
     """Test PostService.get_post with non-existent post"""
     service = PostService(db_session, redis_client)
-    result = await service.get_post(99999)
+    result = await service.get_post(99999, "127.0.0.1")
     assert result is None
 
 
@@ -54,5 +54,5 @@ async def test_service_increment_views_error_handling(
     monkeypatch.setattr(db_session, "execute", mock_execute)
 
     # This should not raise exception (it's caught internally)
-    await service._increment_views_in_background(post.id)
+    await service._increment_views_in_background(post.id, "127.0.0.1")
     # If we get here, test passes
