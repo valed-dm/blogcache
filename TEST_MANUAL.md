@@ -285,46 +285,93 @@ t3   |                    | Commit             | 12 ✓
 
 ---
 
-### Test 9: Concurrent View Increments
+### Test 9: Concurrent View Increments (Reliable Version)
 
-**Option A: Without jq (recommended)**
+**Recommended: Use the reliable test script**
 ```bash
-# Create test script
-cat > test_race_condition.sh << 'EOF'
+# Download or create the reliable test script
+cat > test_race_condition_reliable.sh << 'EOF'
 #!/bin/bash
+
+# Race Condition Test - Reliable Version
+# Tests atomic view counter with cache clearing between requests
+
 POST_ID=$1
 REQUESTS=50
 
-echo "Testing $REQUESTS concurrent requests..."
+if [ -z "$POST_ID" ]; then
+  echo "Usage: $0 <POST_ID>"
+  exit 1
+fi
 
-# Launch concurrent requests
+echo "Testing $REQUESTS concurrent requests with atomic view counter..."
+echo "Post ID: $POST_ID"
+
+# Get container name (adjust if different)
+REDIS_CONTAINER=$(docker ps --format "{{.Names}}" | grep redis | head -1)
+
+if [ -z "$REDIS_CONTAINER" ]; then
+  echo "Error: Redis container not found"
+  exit 1
+fi
+
+# Clear cache and view tracking before test
+echo "Clearing cache and view tracking..."
+docker exec $REDIS_CONTAINER redis-cli DEL "post:$POST_ID" > /dev/null 2>&1
+docker exec $REDIS_CONTAINER redis-cli KEYS "view:$POST_ID:*" | xargs -I {} docker exec $REDIS_CONTAINER redis-cli DEL {} > /dev/null 2>&1
+
+# Get initial view count
+INITIAL_VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | grep -o '"views":[0-9]*' | cut -d':' -f2)
+echo "Initial views: $INITIAL_VIEWS"
+
+# Clear cache again to force all requests to hit DB
+docker exec $REDIS_CONTAINER redis-cli DEL "post:$POST_ID" > /dev/null 2>&1
+
+echo "Launching $REQUESTS concurrent requests..."
+
+# Launch concurrent requests with different IPs (X-Forwarded-For header)
 for i in $(seq 1 $REQUESTS); do
   curl -s -H "X-Forwarded-For: 10.0.0.$i" \
     http://localhost:8000/posts/$POST_ID > /dev/null &
 done
 
-# Wait for all requests
+# Wait for all requests to complete
 wait
 
-echo "Waiting for background tasks to complete..."
-# Wait longer for background tasks (async operations)
-sleep 5
+echo "All requests completed. Waiting for any background tasks..."
+sleep 3
 
-# Check final count (extract views without jq)
-VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | grep -o '"views":[0-9]*' | cut -d':' -f2)
-echo "Expected: $REQUESTS"
-echo "Actual: $VIEWS"
+# Clear cache to force fresh read from DB
+docker exec $REDIS_CONTAINER redis-cli DEL "post:$POST_ID" > /dev/null 2>&1
 
-if [ "$VIEWS" -eq "$REQUESTS" ]; then
-  echo "✅ PASS: No race condition detected"
+# Get final view count
+FINAL_VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | grep -o '"views":[0-9]*' | cut -d':' -f2)
+EXPECTED=$((INITIAL_VIEWS + REQUESTS))
+
+echo ""
+echo "Results:"
+echo "--------"
+echo "Initial views:  $INITIAL_VIEWS"
+echo "Requests sent:  $REQUESTS"
+echo "Expected views: $EXPECTED"
+echo "Actual views:   $FINAL_VIEWS"
+echo ""
+
+if [ "$FINAL_VIEWS" -eq "$EXPECTED" ]; then
+  echo "✅ PASS: No race condition detected!"
+  echo "All $REQUESTS concurrent increments were applied atomically."
+  exit 0
 else
-  echo "❌ FAIL: Lost updates detected (expected $REQUESTS, got $VIEWS)"
+  LOST=$((EXPECTED - FINAL_VIEWS))
+  echo "❌ FAIL: Race condition detected!"
+  echo "Lost updates: $LOST (expected $EXPECTED, got $FINAL_VIEWS)"
+  exit 1
 fi
 EOF
 
-chmod +x test_race_condition.sh
+chmod +x test_race_condition_reliable.sh
 
-# Create a post (extract ID without jq)
+# Create a post
 RESPONSE=$(curl -s -X POST http://localhost:8000/posts/ \
   -H "Content-Type: application/json" \
   -d '{
@@ -337,55 +384,35 @@ POST_ID=$(echo $RESPONSE | grep -o '"id":[0-9]*' | cut -d':' -f2)
 echo "Created post with ID: $POST_ID"
 
 # Run test
-./test_race_condition.sh $POST_ID
-```
-
-**Option B: With jq (if installed)**
-```bash
-# Install jq first: brew install jq (macOS) or apt-get install jq (Linux)
-
-# Create test script
-cat > test_race_condition.sh << 'EOF'
-#!/bin/bash
-POST_ID=$1
-REQUESTS=50
-
-echo "Testing $REQUESTS concurrent requests..."
-
-for i in $(seq 1 $REQUESTS); do
-  curl -s -H "X-Forwarded-For: 10.0.0.$i" \
-    http://localhost:8000/posts/$POST_ID > /dev/null &
-done
-wait
-
-echo "Waiting for background tasks to complete..."
-sleep 5
-
-VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | jq '.views')
-echo "Expected: $REQUESTS"
-echo "Actual: $VIEWS"
-
-if [ "$VIEWS" -eq "$REQUESTS" ]; then
-  echo "✅ PASS: No race condition detected"
-else
-  echo "❌ FAIL: Lost updates detected (expected $REQUESTS, got $VIEWS)"
-fi
-EOF
-
-chmod +x test_race_condition.sh
-POST_ID=$(curl -s -X POST http://localhost:8000/posts/ \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Race Condition Test","content":"Testing","author":"Tester"}' | jq -r '.id')
-./test_race_condition.sh $POST_ID
+./test_race_condition_reliable.sh $POST_ID
 ```
 
 **Expected Output:**
 ```
-Testing 50 concurrent requests...
-Expected: 50
-Actual: 50
-✅ PASS: No race condition detected
+Testing 50 concurrent requests with atomic view counter...
+Post ID: 1
+Clearing cache and view tracking...
+Initial views: 0
+Launching 50 concurrent requests...
+All requests completed. Waiting for any background tasks...
+
+Results:
+--------
+Initial views:  0
+Requests sent:  50
+Expected views: 50
+Actual views:   50
+
+✅ PASS: No race condition detected!
+All 50 concurrent increments were applied atomically.
 ```
+
+**Key Features:**
+- Clears cache before test to force DB hits
+- Uses X-Forwarded-For header for different IPs
+- Tracks initial and final view counts
+- Auto-detects Redis container name
+- Shows detailed results with lost update count
 
 ---
 
@@ -785,46 +812,93 @@ t3    |                    | Commit             | 12 ✓
 
 ---
 
-### Тест 9: Конкурентные инкременты просмотров
+### Тест 9: Конкурентные инкременты просмотров (Надежная версия)
 
-**Вариант A: Без jq (рекомендуется)**
+**Рекомендуется: Используйте надежный тестовый скрипт**
 ```bash
-# Создать тестовый скрипт
-cat > test_race_condition.sh << 'EOF'
+# Создать надежный тестовый скрипт
+cat > test_race_condition_reliable.sh << 'EOF'
 #!/bin/bash
+
+# Тест Race Condition - Надежная версия
+# Тестирует атомарный счетчик просмотров с очисткой кеша между запросами
+
 POST_ID=$1
 REQUESTS=50
 
-echo "Тестирование $REQUESTS конкурентных запросов..."
+if [ -z "$POST_ID" ]; then
+  echo "Использование: $0 <POST_ID>"
+  exit 1
+fi
 
-# Запустить конкурентные запросы
+echo "Тестирование $REQUESTS конкурентных запросов с атомарным счетчиком..."
+echo "Post ID: $POST_ID"
+
+# Получить имя контейнера (настроить при необходимости)
+REDIS_CONTAINER=$(docker ps --format "{{.Names}}" | grep redis | head -1)
+
+if [ -z "$REDIS_CONTAINER" ]; then
+  echo "Ошибка: Redis контейнер не найден"
+  exit 1
+fi
+
+# Очистить кеш и отслеживание просмотров перед тестом
+echo "Очистка кеша и отслеживания просмотров..."
+docker exec $REDIS_CONTAINER redis-cli DEL "post:$POST_ID" > /dev/null 2>&1
+docker exec $REDIS_CONTAINER redis-cli KEYS "view:$POST_ID:*" | xargs -I {} docker exec $REDIS_CONTAINER redis-cli DEL {} > /dev/null 2>&1
+
+# Получить начальное количество просмотров
+INITIAL_VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | grep -o '"views":[0-9]*' | cut -d':' -f2)
+echo "Начальные просмотры: $INITIAL_VIEWS"
+
+# Очистить кеш снова, чтобы все запросы попали в БД
+docker exec $REDIS_CONTAINER redis-cli DEL "post:$POST_ID" > /dev/null 2>&1
+
+echo "Запуск $REQUESTS конкурентных запросов..."
+
+# Запустить конкурентные запросы с разными IP (заголовок X-Forwarded-For)
 for i in $(seq 1 $REQUESTS); do
   curl -s -H "X-Forwarded-For: 10.0.0.$i" \
     http://localhost:8000/posts/$POST_ID > /dev/null &
 done
 
-# Дождаться всех запросов
+# Дождаться завершения всех запросов
 wait
 
-echo "Ожидание завершения фоновых задач..."
-# Дождаться фоновых задач (асинхронные операции)
-sleep 5
+echo "Все запросы завершены. Ожидание фоновых задач..."
+sleep 3
 
-# Проверить финальный счетчик (извлечь views без jq)
-VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | grep -o '"views":[0-9]*' | cut -d':' -f2)
-echo "Ожидается: $REQUESTS"
-echo "Фактически: $VIEWS"
+# Очистить кеш для свежего чтения из БД
+docker exec $REDIS_CONTAINER redis-cli DEL "post:$POST_ID" > /dev/null 2>&1
 
-if [ "$VIEWS" -eq "$REQUESTS" ]; then
-  echo "✅ УСПЕХ: Race condition не обнаружена"
+# Получить финальное количество просмотров
+FINAL_VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | grep -o '"views":[0-9]*' | cut -d':' -f2)
+EXPECTED=$((INITIAL_VIEWS + REQUESTS))
+
+echo ""
+echo "Результаты:"
+echo "--------"
+echo "Начальные просмотры:  $INITIAL_VIEWS"
+echo "Отправлено запросов:  $REQUESTS"
+echo "Ожидается просмотров: $EXPECTED"
+echo "Фактически просмотров: $FINAL_VIEWS"
+echo ""
+
+if [ "$FINAL_VIEWS" -eq "$EXPECTED" ]; then
+  echo "✅ УСПЕХ: Race condition не обнаружена!"
+  echo "Все $REQUESTS конкурентных инкрементов применены атомарно."
+  exit 0
 else
-  echo "❌ ПРОВАЛ: Обнаружены потерянные обновления (ожидалось $REQUESTS, получено $VIEWS)"
+  LOST=$((EXPECTED - FINAL_VIEWS))
+  echo "❌ ПРОВАЛ: Обнаружена race condition!"
+  echo "Потерянные обновления: $LOST (ожидалось $EXPECTED, получено $FINAL_VIEWS)"
+  exit 1
 fi
 EOF
 
-chmod +x test_race_condition.sh
+chmod +x test_race_condition_reliable.sh
 
-# Создать пост (извлечь ID без jq)
+# Создать пост
 RESPONSE=$(curl -s -X POST http://localhost:8000/posts/ \
   -H "Content-Type: application/json" \
   -d '{
@@ -837,54 +911,35 @@ POST_ID=$(echo $RESPONSE | grep -o '"id":[0-9]*' | cut -d':' -f2)
 echo "Создан пост с ID: $POST_ID"
 
 # Запустить тест
-./test_race_condition.sh $POST_ID
-```
-
-**Вариант B: С jq (если установлен)**
-```bash
-# Установить jq: brew install jq (macOS) или apt-get install jq (Linux)
-
-cat > test_race_condition.sh << 'EOF'
-#!/bin/bash
-POST_ID=$1
-REQUESTS=50
-
-echo "Тестирование $REQUESTS конкурентных запросов..."
-
-for i in $(seq 1 $REQUESTS); do
-  curl -s -H "X-Forwarded-For: 10.0.0.$i" \
-    http://localhost:8000/posts/$POST_ID > /dev/null &
-done
-wait
-
-echo "Ожидание завершения фоновых задач..."
-sleep 5
-
-VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | jq '.views')
-echo "Ожидается: $REQUESTS"
-echo "Фактически: $VIEWS"
-
-if [ "$VIEWS" -eq "$REQUESTS" ]; then
-  echo "✅ УСПЕХ: Race condition не обнаружена"
-else
-  echo "❌ ПРОВАЛ: Обнаружены потерянные обновления (ожидалось $REQUESTS, получено $VIEWS)"
-fi
-EOF
-
-chmod +x test_race_condition.sh
-POST_ID=$(curl -s -X POST http://localhost:8000/posts/ \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Тест Race Condition","content":"Тестирование","author":"Тестер"}' | jq -r '.id')
-./test_race_condition.sh $POST_ID
+./test_race_condition_reliable.sh $POST_ID
 ```
 
 **Ожидаемый вывод:**
 ```
-Тестирование 50 конкурентных запросов...
-Ожидается: 50
-Фактически: 50
-✅ УСПЕХ: Race condition не обнаружена
+Тестирование 50 конкурентных запросов с атомарным счетчиком...
+Post ID: 1
+Очистка кеша и отслеживания просмотров...
+Начальные просмотры: 0
+Запуск 50 конкурентных запросов...
+Все запросы завершены. Ожидание фоновых задач...
+
+Результаты:
+--------
+Начальные просмотры:  0
+Отправлено запросов:  50
+Ожидается просмотров: 50
+Фактически просмотров: 50
+
+✅ УСПЕХ: Race condition не обнаружена!
+Все 50 конкурентных инкрементов применены атомарно.
 ```
+
+**Ключевые особенности:**
+- Очищает кеш перед тестом для принудительного обращения к БД
+- Использует заголовок X-Forwarded-For для разных IP
+- Отслеживает начальное и финальное количество просмотров
+- Автоматически определяет имя Redis контейнера
+- Показывает детальные результаты с количеством потерянных обновлений
 
 ---
 
