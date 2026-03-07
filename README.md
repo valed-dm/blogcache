@@ -521,5 +521,5 @@ Dmitrij Valedinskij
 
 ## 🔗 Links
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Redis Cache-Aside Pattern](https://redis.io/docs/manual/patterns/cache-aside/)
+- [Redis Cache-Aside Pattern](https://redis.io/tutorials/howtos/solutions/microservices/caching/)
 - [SQLAlchemy 2.0](https://docs.sqlalchemy.org/en/20/)
