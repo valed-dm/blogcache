@@ -306,8 +306,9 @@ done
 # Wait for all requests
 wait
 
-# Wait for background tasks
-sleep 2
+echo "Waiting for background tasks to complete..."
+# Wait longer for background tasks (async operations)
+sleep 5
 
 # Check final count (extract views without jq)
 VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | grep -o '"views":[0-9]*' | cut -d':' -f2)
@@ -317,7 +318,7 @@ echo "Actual: $VIEWS"
 if [ "$VIEWS" -eq "$REQUESTS" ]; then
   echo "✅ PASS: No race condition detected"
 else
-  echo "❌ FAIL: Lost updates detected"
+  echo "❌ FAIL: Lost updates detected (expected $REQUESTS, got $VIEWS)"
 fi
 EOF
 
@@ -356,7 +357,9 @@ for i in $(seq 1 $REQUESTS); do
     http://localhost:8000/posts/$POST_ID > /dev/null &
 done
 wait
-sleep 2
+
+echo "Waiting for background tasks to complete..."
+sleep 5
 
 VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | jq '.views')
 echo "Expected: $REQUESTS"
@@ -365,7 +368,7 @@ echo "Actual: $VIEWS"
 if [ "$VIEWS" -eq "$REQUESTS" ]; then
   echo "✅ PASS: No race condition detected"
 else
-  echo "❌ FAIL: Lost updates detected"
+  echo "❌ FAIL: Lost updates detected (expected $REQUESTS, got $VIEWS)"
 fi
 EOF
 
@@ -803,8 +806,9 @@ done
 # Дождаться всех запросов
 wait
 
-# Дождаться фоновых задач
-sleep 2
+echo "Ожидание завершения фоновых задач..."
+# Дождаться фоновых задач (асинхронные операции)
+sleep 5
 
 # Проверить финальный счетчик (извлечь views без jq)
 VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | grep -o '"views":[0-9]*' | cut -d':' -f2)
@@ -814,7 +818,7 @@ echo "Фактически: $VIEWS"
 if [ "$VIEWS" -eq "$REQUESTS" ]; then
   echo "✅ УСПЕХ: Race condition не обнаружена"
 else
-  echo "❌ ПРОВАЛ: Обнаружены потерянные обновления"
+  echo "❌ ПРОВАЛ: Обнаружены потерянные обновления (ожидалось $REQUESTS, получено $VIEWS)"
 fi
 EOF
 
@@ -852,7 +856,9 @@ for i in $(seq 1 $REQUESTS); do
     http://localhost:8000/posts/$POST_ID > /dev/null &
 done
 wait
-sleep 2
+
+echo "Ожидание завершения фоновых задач..."
+sleep 5
 
 VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | jq '.views')
 echo "Ожидается: $REQUESTS"
@@ -861,7 +867,7 @@ echo "Фактически: $VIEWS"
 if [ "$VIEWS" -eq "$REQUESTS" ]; then
   echo "✅ УСПЕХ: Race condition не обнаружена"
 else
-  echo "❌ ПРОВАЛ: Обнаружены потерянные обновления"
+  echo "❌ ПРОВАЛ: Обнаружены потерянные обновления (ожидалось $REQUESTS, получено $VIEWS)"
 fi
 EOF
 
