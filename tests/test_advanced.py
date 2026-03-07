@@ -105,9 +105,11 @@ async def test_root_redirect(client: AsyncClient):
     assert "/docs" in response.headers["location"]
 
 
-async def test_concurrent_requests(client_factory, test_engine, redis_client):
-    """Test concurrent requests to same post"""
+async def test_concurrent_requests(test_engine, redis_client):
+    """Test concurrent unique view tracking with different IPs"""
     from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from src.blogcache.services.post_service import PostService
 
     AsyncSessionLocal = async_sessionmaker(
         test_engine, class_=AsyncSession, expire_on_commit=False
@@ -122,24 +124,57 @@ async def test_concurrent_requests(client_factory, test_engine, redis_client):
 
     await redis_client.delete(f"post:{post_id}")
 
-    async def make_request(request_id):
-        async with client_factory() as client:
-            response = await client.get(f"/posts/{post_id}")
-            return response
+    async def make_request_with_ip(ip_suffix: int):
+        async with AsyncSessionLocal() as session:
+            service = PostService(session, redis_client)
+            client_ip = f"192.168.1.{ip_suffix}"
+            result = await service.get_post(post_id, client_ip)
+            return result
 
-    tasks = [make_request(i) for i in range(10)]
-    responses = await asyncio.gather(*tasks)
+    tasks = [make_request_with_ip(i) for i in range(1, 11)]
+    results = await asyncio.gather(*tasks)
 
-    for response in responses:
-        assert response.status_code == 200
+    for result in results:
+        assert result is not None
+        assert result.id == post_id
 
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.2)
 
-    async with client_factory() as client:
-        final_response = await client.get(f"/posts/{post_id}")
-        assert final_response.status_code == 200
-        final_data = final_response.json()
-        assert final_data["views"] >= 10
+    async with AsyncSessionLocal() as session:
+        service = PostService(session, redis_client)
+        final_result = await service.get_post(post_id, "192.168.1.100")
+        assert final_result is not None
+        assert final_result.views >= 10
+
+
+async def test_unique_view_tracking(
+    client: AsyncClient, db_session: AsyncSession, redis_client: Redis
+):
+    """Test that same IP doesn't increment views multiple times"""
+    post = Post(title="Unique View Test", content="Test", views=0)
+    db_session.add(post)
+    await db_session.commit()
+    await db_session.refresh(post)
+    post_id = post.id
+
+    await redis_client.flushdb()
+
+    response1 = await client.get(f"/posts/{post_id}")
+    assert response1.status_code == 200
+    data1 = response1.json()
+    assert data1["views"] == 1
+
+    await asyncio.sleep(0.2)
+
+    response2 = await client.get(f"/posts/{post_id}")
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert data2["views"] == 1
+
+    response3 = await client.get(f"/posts/{post_id}")
+    assert response3.status_code == 200
+    data3 = response3.json()
+    assert data3["views"] == 1
 
 
 async def test_cache_expiry(
