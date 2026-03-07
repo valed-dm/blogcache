@@ -1,6 +1,25 @@
 name: API Tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Test environment'
+        type: choice
+        options:
+          - local
+          - staging
+        default: 'local'
+        required: false
+      test_collection:
+        description: 'Postman collection file'
+        type: string
+        default: 'postman_collection.json'
+        required: false
 
 jobs:
   test:
@@ -34,7 +53,7 @@ jobs:
 
       - name: Run Postman tests
         run: |
-          newman run postman_collection.json \
+          newman run ${{ github.event.inputs.test_collection || 'postman_collection.json' }} \
             -e postman_environment.json \
             --reporters cli,json \
             --reporter-json-export newman-results.json
