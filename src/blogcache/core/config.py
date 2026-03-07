@@ -32,22 +32,22 @@ class Settings(BaseSettings):
     )
     test_redis_db: Annotated[int, Field(description="Test Redis database number")] = 1
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:
         return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def redis_url(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def test_database_url(self) -> str:
         return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.test_postgres_db}"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def test_redis_url(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/{self.test_redis_db}"
