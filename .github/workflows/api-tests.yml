@@ -6,7 +6,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Start services
         run: docker-compose -f docker-compose.local.yml up -d
@@ -25,7 +25,7 @@ jobs:
             --reporter-json-export newman-results.json
 
       - name: Upload results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: newman-results
           path: newman-results.json
