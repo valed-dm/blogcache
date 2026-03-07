@@ -1,0 +1,691 @@
+{
+	"info": {
+		"_postman_id": "blogcache-api-collection",
+		"name": "BlogCache API - Complete Test Suite",
+		"description": "Comprehensive Postman collection for testing blogcache API with CRUD operations, caching, and race condition prevention",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has correct structure\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('status');",
+							"    pm.expect(jsonData).to.have.property('service');",
+							"    pm.expect(jsonData.status).to.eql('healthy');",
+							"    pm.expect(jsonData.service).to.eql('blogcache');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": ["{{base_url}}"],
+					"path": ["health"]
+				},
+				"description": "Check API health status"
+			},
+			"response": []
+		},
+		{
+			"name": "Create Post",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has post ID\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('id');",
+							"    pm.expect(jsonData.id).to.be.a('number');",
+							"    pm.collectionVariables.set('post_id', jsonData.id);",
+							"});",
+							"",
+							"pm.test(\"Post has correct data\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.title).to.eql('Test Post from Postman');",
+							"    pm.expect(jsonData.content).to.include('This is a test post');",
+							"    pm.expect(jsonData.author).to.eql('Postman Tester');",
+							"    pm.expect(jsonData.views).to.eql(0);",
+							"});",
+							"",
+							"pm.test(\"Response time is less than 500ms\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(500);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"title\": \"Test Post from Postman\",\n    \"content\": \"This is a test post created via Postman to test the API endpoints.\",\n    \"author\": \"Postman Tester\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/posts/",
+					"host": ["{{base_url}}"],
+					"path": ["posts", ""]
+				},
+				"description": "Create a new blog post"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Post by ID (First Read - Cache Miss)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Post data is correct\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('id');",
+							"    pm.expect(jsonData).to.have.property('title');",
+							"    pm.expect(jsonData).to.have.property('content');",
+							"    pm.expect(jsonData).to.have.property('author');",
+							"    pm.expect(jsonData).to.have.property('views');",
+							"});",
+							"",
+							"pm.test(\"Views incremented to 1\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.views).to.eql(1);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/posts/{{post_id}}",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "{{post_id}}"]
+				},
+				"description": "Get post by ID - first read (cache miss, reads from DB)"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Post by ID (Second Read - Cache Hit)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response time is faster (cache hit)\", function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(100);",
+							"});",
+							"",
+							"pm.test(\"Views still 1 (same IP)\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.views).to.eql(1);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/posts/{{post_id}}",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "{{post_id}}"]
+				},
+				"description": "Get post by ID - second read (cache hit, faster response)"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Post with Different IP",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Views incremented (different IP)\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.views).to.be.above(1);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-Forwarded-For",
+						"value": "192.168.1.100",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/posts/{{post_id}}",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "{{post_id}}"]
+				},
+				"description": "Get post with different IP to test unique view tracking"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Post",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Post updated successfully\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.title).to.eql('Updated Post Title');",
+							"    pm.expect(jsonData.content).to.include('updated content');",
+							"});",
+							"",
+							"pm.test(\"Cache should be invalidated\", function () {",
+							"    // Next GET request should fetch fresh data",
+							"    pm.expect(pm.response.code).to.eql(200);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"title\": \"Updated Post Title\",\n    \"content\": \"This is the updated content for testing cache invalidation.\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/posts/{{post_id}}",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "{{post_id}}"]
+				},
+				"description": "Update post and invalidate cache"
+			},
+			"response": []
+		},
+		{
+			"name": "Verify Update (Cache Invalidated)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Updated data is returned\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.title).to.eql('Updated Post Title');",
+							"    pm.expect(jsonData.content).to.include('updated content');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/posts/{{post_id}}",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "{{post_id}}"]
+				},
+				"description": "Verify that updated data is returned (cache was invalidated)"
+			},
+			"response": []
+		},
+		{
+			"name": "Partial Update (Only Title)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Only title updated\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.title).to.eql('Partially Updated Title');",
+							"    pm.expect(jsonData.content).to.include('updated content');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"title\": \"Partially Updated Title\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/posts/{{post_id}}",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "{{post_id}}"]
+				},
+				"description": "Test partial update (only title field)"
+			},
+			"response": []
+		},
+		{
+			"name": "Get All Posts",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response is an array\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.be.an('array');",
+							"});",
+							"",
+							"pm.test(\"Array contains posts\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.length).to.be.above(0);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/posts/",
+					"host": ["{{base_url}}"],
+					"path": ["posts", ""]
+				},
+				"description": "Get all posts with default pagination"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Posts with Pagination",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response respects limit\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.length).to.be.at.most(2);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/posts/?skip=0&limit=2",
+					"host": ["{{base_url}}"],
+					"path": ["posts", ""],
+					"query": [
+						{
+							"key": "skip",
+							"value": "0"
+						},
+						{
+							"key": "limit",
+							"value": "2"
+						}
+					]
+				},
+				"description": "Test pagination with skip and limit parameters"
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Post",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Success message returned\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('message');",
+							"    pm.expect(jsonData.message).to.include('deleted');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/posts/{{post_id}}",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "{{post_id}}"]
+				},
+				"description": "Delete post and invalidate cache"
+			},
+			"response": []
+		},
+		{
+			"name": "Verify Deletion (404)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 404\", function () {",
+							"    pm.response.to.have.status(404);",
+							"});",
+							"",
+							"pm.test(\"Error message returned\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('detail');",
+							"    pm.expect(jsonData.detail).to.include('not found');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/posts/{{post_id}}",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "{{post_id}}"]
+				},
+				"description": "Verify post is deleted (should return 404)"
+			},
+			"response": []
+		},
+		{
+			"name": "Create Post with Invalid Data (Empty Title)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 422\", function () {",
+							"    pm.response.to.have.status(422);",
+							"});",
+							"",
+							"pm.test(\"Validation error returned\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('detail');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"title\": \"\",\n    \"content\": \"Valid content\",\n    \"author\": \"Tester\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/posts/",
+					"host": ["{{base_url}}"],
+					"path": ["posts", ""]
+				},
+				"description": "Test validation - empty title should fail"
+			},
+			"response": []
+		},
+		{
+			"name": "Create Post with Missing Fields",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 422\", function () {",
+							"    pm.response.to.have.status(422);",
+							"});",
+							"",
+							"pm.test(\"Validation error for missing fields\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('detail');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"title\": \"Test Post\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/posts/",
+					"host": ["{{base_url}}"],
+					"path": ["posts", ""]
+				},
+				"description": "Test validation - missing required fields"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Non-Existent Post",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 404\", function () {",
+							"    pm.response.to.have.status(404);",
+							"});",
+							"",
+							"pm.test(\"Not found error returned\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('detail');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/posts/99999",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "99999"]
+				},
+				"description": "Test 404 error for non-existent post"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Non-Existent Post",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 404\", function () {",
+							"    pm.response.to.have.status(404);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"title\": \"Updated Title\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/posts/99999",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "99999"]
+				},
+				"description": "Test updating non-existent post"
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Non-Existent Post",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 404\", function () {",
+							"    pm.response.to.have.status(404);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/posts/99999",
+					"host": ["{{base_url}}"],
+					"path": ["posts", "99999"]
+				},
+				"description": "Test deleting non-existent post"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "post_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
