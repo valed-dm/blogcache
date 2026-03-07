@@ -27,6 +27,7 @@ isort = "^8.0.1"
 ruff = "^0.15.4"
 pre-commit = "==4.5.1"
 httpx = "^0.28.1"
+psycopg2-binary = "^2.9.11"
 
 [tool.black]
 line-length = 88
