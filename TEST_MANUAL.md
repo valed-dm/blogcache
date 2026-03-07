@@ -286,6 +286,8 @@ t3   |                    | Commit             | 12 ✓
 ---
 
 ### Test 9: Concurrent View Increments
+
+**Option A: Without jq (recommended)**
 ```bash
 # Create test script
 cat > test_race_condition.sh << 'EOF'
@@ -307,8 +309,8 @@ wait
 # Wait for background tasks
 sleep 2
 
-# Check final count
-VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | jq '.views')
+# Check final count (extract views without jq)
+VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | grep -o '"views":[0-9]*' | cut -d':' -f2)
 echo "Expected: $REQUESTS"
 echo "Actual: $VIEWS"
 
@@ -321,16 +323,56 @@ EOF
 
 chmod +x test_race_condition.sh
 
-# Create a post
-POST_ID=$(curl -X POST http://localhost:8000/posts/ \
+# Create a post (extract ID without jq)
+RESPONSE=$(curl -s -X POST http://localhost:8000/posts/ \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Race Condition Test",
     "content": "Testing concurrent increments",
     "author": "Tester"
-  }' | jq -r '.id')
+  }')
+POST_ID=$(echo $RESPONSE | grep -o '"id":[0-9]*' | cut -d':' -f2)
+
+echo "Created post with ID: $POST_ID"
 
 # Run test
+./test_race_condition.sh $POST_ID
+```
+
+**Option B: With jq (if installed)**
+```bash
+# Install jq first: brew install jq (macOS) or apt-get install jq (Linux)
+
+# Create test script
+cat > test_race_condition.sh << 'EOF'
+#!/bin/bash
+POST_ID=$1
+REQUESTS=50
+
+echo "Testing $REQUESTS concurrent requests..."
+
+for i in $(seq 1 $REQUESTS); do
+  curl -s -H "X-Forwarded-For: 10.0.0.$i" \
+    http://localhost:8000/posts/$POST_ID > /dev/null &
+done
+wait
+sleep 2
+
+VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | jq '.views')
+echo "Expected: $REQUESTS"
+echo "Actual: $VIEWS"
+
+if [ "$VIEWS" -eq "$REQUESTS" ]; then
+  echo "✅ PASS: No race condition detected"
+else
+  echo "❌ FAIL: Lost updates detected"
+fi
+EOF
+
+chmod +x test_race_condition.sh
+POST_ID=$(curl -s -X POST http://localhost:8000/posts/ \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Race Condition Test","content":"Testing","author":"Tester"}' | jq -r '.id')
 ./test_race_condition.sh $POST_ID
 ```
 
@@ -741,6 +783,8 @@ t3    |                    | Commit             | 12 ✓
 ---
 
 ### Тест 9: Конкурентные инкременты просмотров
+
+**Вариант A: Без jq (рекомендуется)**
 ```bash
 # Создать тестовый скрипт
 cat > test_race_condition.sh << 'EOF'
@@ -762,8 +806,8 @@ wait
 # Дождаться фоновых задач
 sleep 2
 
-# Проверить финальный счетчик
-VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | jq '.views')
+# Проверить финальный счетчик (извлечь views без jq)
+VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | grep -o '"views":[0-9]*' | cut -d':' -f2)
 echo "Ожидается: $REQUESTS"
 echo "Фактически: $VIEWS"
 
@@ -776,16 +820,55 @@ EOF
 
 chmod +x test_race_condition.sh
 
-# Создать пост
-POST_ID=$(curl -X POST http://localhost:8000/posts/ \
+# Создать пост (извлечь ID без jq)
+RESPONSE=$(curl -s -X POST http://localhost:8000/posts/ \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Тест Race Condition",
     "content": "Тестирование конкурентных инкрементов",
     "author": "Тестер"
-  }' | jq -r '.id')
+  }')
+POST_ID=$(echo $RESPONSE | grep -o '"id":[0-9]*' | cut -d':' -f2)
+
+echo "Создан пост с ID: $POST_ID"
 
 # Запустить тест
+./test_race_condition.sh $POST_ID
+```
+
+**Вариант B: С jq (если установлен)**
+```bash
+# Установить jq: brew install jq (macOS) или apt-get install jq (Linux)
+
+cat > test_race_condition.sh << 'EOF'
+#!/bin/bash
+POST_ID=$1
+REQUESTS=50
+
+echo "Тестирование $REQUESTS конкурентных запросов..."
+
+for i in $(seq 1 $REQUESTS); do
+  curl -s -H "X-Forwarded-For: 10.0.0.$i" \
+    http://localhost:8000/posts/$POST_ID > /dev/null &
+done
+wait
+sleep 2
+
+VIEWS=$(curl -s http://localhost:8000/posts/$POST_ID | jq '.views')
+echo "Ожидается: $REQUESTS"
+echo "Фактически: $VIEWS"
+
+if [ "$VIEWS" -eq "$REQUESTS" ]; then
+  echo "✅ УСПЕХ: Race condition не обнаружена"
+else
+  echo "❌ ПРОВАЛ: Обнаружены потерянные обновления"
+fi
+EOF
+
+chmod +x test_race_condition.sh
+POST_ID=$(curl -s -X POST http://localhost:8000/posts/ \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Тест Race Condition","content":"Тестирование","author":"Тестер"}' | jq -r '.id')
 ./test_race_condition.sh $POST_ID
 ```
 
