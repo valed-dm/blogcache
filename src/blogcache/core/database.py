@@ -24,10 +24,7 @@ redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
 async def get_db() -> AsyncSession:
     """Dependency for getting DB session"""
     async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+        yield session
 
 
 async def get_redis() -> Redis:
