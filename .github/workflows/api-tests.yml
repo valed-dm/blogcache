@@ -33,7 +33,10 @@ jobs:
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for services to start..."
-          sleep 15
+          sleep 20
+
+          # Check database is created
+          docker compose -f docker-compose.local.yml exec -T postgres psql -U blogcache_user -d blogcache -c "SELECT 1" || echo "Database not ready yet"
 
           # Wait for API to be ready
           for i in {1..30}; do
