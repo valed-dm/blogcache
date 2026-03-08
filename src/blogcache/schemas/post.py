@@ -27,9 +27,3 @@ class PostResponse(PostBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class PostInDB(PostResponse):
-    """Internal model with all DB fields"""
-
-    pass
