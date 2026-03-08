@@ -73,6 +73,9 @@ class PostService:
             log.debug("Incremented views for post_id={} from ip={}", post_id, client_ip)
             # Fetch fresh data after increment
             db_post = await self.repository.get_by_id(post_id)
+            if not db_post:
+                log.error("Post disappeared after increment: post_id={}", post_id)
+                return None
 
         # Convert to DTO for internal processing
         dto = PostDTO.from_model(db_post)
