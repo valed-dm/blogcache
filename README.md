@@ -80,7 +80,19 @@ High-performance blog API built with **FastAPI** and **Redis caching** to optimi
 - **Read:** Check Redis → Miss? → Query PostgreSQL → Store in Redis (TTL: 5 min) → Return
 - **Write/Update/Delete:** Update PostgreSQL → Invalidate Redis cache → Return
 
-**Alternative considered:** Write-Through (rejected due to complexity and unnecessary writes for unpopular posts)
+**Alternative considered:** Write-Through (rejected)
+
+**Why Write-Through was rejected:**
+- **Wasted resources** — Every post write goes to both DB and cache, even if post is never read
+- **Cache pollution** — Unpopular posts consume cache memory unnecessarily
+- **Complexity** — Requires synchronous writes to two systems, increasing latency
+- **Failure handling** — If cache write fails, need rollback logic or accept inconsistency
+- **No clear benefit** — Most posts are read rarely, so pre-caching doesn't help
+
+**When Write-Through would be better:**
+- High read-to-write ratio for ALL posts (not just popular ones)
+- Strict requirement that first read must be fast (no cache miss allowed)
+- Cache is primary data store with DB as backup
 
 ### 🛠️ Tech Stack
 - **Framework:** FastAPI 0.115+
@@ -329,7 +341,19 @@ blogcache/
 - **Чтение:** Проверка Redis → Промах? → Запрос PostgreSQL → Сохранение в Redis (TTL: 5 мин) → Возврат
 - **Запись/Обновление/Удаление:** Обновление PostgreSQL → Инвалидация кеша Redis → Возврат
 
-**Альтернатива:** Write-Through (отклонена из-за сложности и лишних записей для непопулярных постов)
+**Альтернатива:** Write-Through (отклонена)
+
+**Почему Write-Through был отклонен:**
+- **Расход ресурсов** — Каждая запись идет и в БД, и в кеш, даже если пост никогда не прочитают
+- **Засорение кеша** — Непопулярные посты занимают память кеша без пользы
+- **Сложность** — Требует синхронной записи в две системы, увеличивая задержку
+- **Обработка ошибок** — При сбое записи в кеш нужна логика отката или принятие несогласованности
+- **Нет явной выгоды** — Большинство постов читаются редко, поэтому предварительное кеширование не помогает
+
+**Когда Write-Through был бы лучше:**
+- Высокое соотношение чтения к записи для ВСЕХ постов (не только популярных)
+- Строгое требование, чтобы первое чтение было быстрым (промах кеша недопустим)
+- Кеш является основным хранилищем данных с БД в качестве резервной копии
 
 ### 🛠️ Технологический стек
 - **Фреймворк:** FastAPI 0.115+
