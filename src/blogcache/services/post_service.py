@@ -96,7 +96,9 @@ class PostService:
             logger.error(f"Redis error in _should_increment_view: {e}")
             return True  # Fallback: count the view
 
-    async def _increment_views_in_background(self, post_id: int, client_ip: str):
+    async def _increment_views_in_background(
+        self, post_id: int, client_ip: str
+    ) -> None:
         """Increment views atomically if unique and invalidate cache"""
         try:
             should_increment = await self._should_increment_view(post_id, client_ip)
