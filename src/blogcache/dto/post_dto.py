@@ -6,6 +6,7 @@ making refactoring easier and improving maintainability.
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from ..models.post import Post
 
@@ -40,7 +41,7 @@ class PostDTO:
             updated_at=post.updated_at,
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert DTO to dictionary.
 
         Returns:
