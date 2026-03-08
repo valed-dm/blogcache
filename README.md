@@ -8,7 +8,7 @@
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat&logo=redis&logoColor=white)
 ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-D71F00?style=flat&logo=sqlalchemy&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker&logoColor=white)
-![Pytest](https://img.shields.io/badge/Pytest-86%25_coverage-0A9EDC?style=flat&logo=pytest&logoColor=white)
+![Pytest](https://img.shields.io/badge/Pytest-83%25_coverage-0A9EDC?style=flat&logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat)
 
 ---
@@ -28,7 +28,7 @@ High-performance blog API built with **FastAPI** and **Redis caching** to optimi
 - 🗄️ **Async SQLAlchemy** + PostgreSQL with asyncpg
 - 🔧 **Alembic migrations** for database version control
 - 🐳 **Docker Compose** setup (PostgreSQL + Redis)
-- 🧪 **Integration tests** with 86% coverage (25 tests)
+- 🧪 **42 tests** with 83% coverage (29 integration + 13 unit tests)
 - 📚 **Auto-generated OpenAPI docs** at `/docs`
 
 ### 🏗️ Architecture
@@ -185,13 +185,12 @@ poetry run pytest --cov=src/blogcache --cov-report=html
 open htmlcov/index.html
 ```
 
-**Test coverage:** 86% (25 tests passing)
+**Test coverage:** 83% (42 tests passing)
 
-**Test categories:**
-- `test_cache.py` — Cache-Aside pattern integration tests
-- `test_service.py` — PostService business logic tests
-- `test_advanced.py` — Concurrent requests & unique view tracking
-- `test_validation.py` — Input validation tests
+**Test structure:**
+- `integration/` — 29 tests for Cache-Aside, CRUD API, atomic views, validation
+- `unit/` — 13 tests for schemas and service logic
+- See `tests/README.md` for detailed documentation
 
 ### 🗄️ Database Migrations
 
@@ -278,7 +277,7 @@ blogcache/
 - 🗄️ **Async SQLAlchemy** + PostgreSQL с asyncpg
 - 🔧 **Миграции Alembic** для версионирования БД
 - 🐳 **Docker Compose** (PostgreSQL + Redis)
-- 🧪 **Интеграционные тесты** с покрытием 86% (25 тестов)
+- 🧪 **42 теста** с покрытием 83% (29 интеграционных + 13 unit тестов)
 - 📚 **Автогенерация OpenAPI документации** на `/docs`
 
 ### 🏗️ Архитектура
@@ -435,13 +434,12 @@ poetry run pytest --cov=src/blogcache --cov-report=html
 open htmlcov/index.html
 ```
 
-**Покрытие тестами:** 86% (25 тестов проходят)
+**Покрытие тестами:** 83% (42 теста проходят)
 
-**Категории тестов:**
-- `test_cache.py` — Интеграционные тесты паттерна Cache-Aside
-- `test_service.py` — Тесты бизнес-логики PostService
-- `test_advanced.py` — Конкурентные запросы и уникальные просмотры
-- `test_validation.py` — Тесты валидации входных данных
+**Структура тестов:**
+- `integration/` — 29 тестов для Cache-Aside, CRUD API, атомарных просмотров, валидации
+- `unit/` — 13 тестов для схем и логики сервисов
+- См. `tests/README.md` для подробной документации
 
 ### 🗄️ Миграции базы данных
 
