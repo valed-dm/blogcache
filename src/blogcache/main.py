@@ -20,6 +20,8 @@ from .core.config import settings
 from .core.database import engine
 from .core.database import redis_client
 from .core.exceptions import BlogCacheException
+from .core.exceptions import CacheError
+from .core.exceptions import DatabaseError
 from .core.exceptions import PostNotFoundError
 from .core.logging import log
 
@@ -95,6 +97,27 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": str(exc)},
+        )
+
+    @application.exception_handler(CacheError)
+    async def cache_error_handler(request: Request, exc: CacheError) -> JSONResponse:
+        """Handle CacheError exceptions (non-critical, log and continue)."""
+        log.warning("Cache error: operation={} key={}", exc.operation, exc.key)
+        # Cache errors are non-critical, return 500 but service continues
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Cache operation failed"},
+        )
+
+    @application.exception_handler(DatabaseError)
+    async def database_error_handler(
+        request: Request, exc: DatabaseError
+    ) -> JSONResponse:
+        """Handle DatabaseError exceptions (critical)."""
+        log.error("Database error: operation={}", exc.operation)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Database operation failed"},
         )
 
     @application.exception_handler(BlogCacheException)
