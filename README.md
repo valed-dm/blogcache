@@ -26,9 +26,14 @@ High-performance blog API built with **FastAPI** and **Redis caching** to optimi
 - 👁️ **Unique view tracking** (one view per IP per 24 hours)
 - ⚡ **Atomic view counter** (race condition safe)
 - 🗄️ **Async SQLAlchemy** + PostgreSQL with asyncpg
+- 🏗️ **Clean Architecture** (Repository Pattern + DTOs)
+- 📊 **Prometheus metrics** for monitoring
+- 🛡️ **Rate limiting** (100/min global, 10/min for POST)
+- 🏥 **Health checks** with dependency status
+- 📝 **Structured logging** with Loguru (rotation + compression)
 - 🔧 **Alembic migrations** for database version control
 - 🐳 **Docker Compose** setup (PostgreSQL + Redis)
-- 🧪 **42 tests** with 83% coverage (29 integration + 13 unit tests)
+- 🧪 **53 tests** with 83% coverage (29 integration + 24 unit tests)
 - 📚 **Auto-generated OpenAPI docs** at `/docs`
 
 ### 🏗️ Architecture
@@ -40,30 +45,44 @@ High-performance blog API built with **FastAPI** and **Redis caching** to optimi
        │ HTTP Request
        ▼
 ┌─────────────────────────────────────┐
-│         FastAPI Router              │
-│    (src/blogcache/api/posts.py)     │
+│      FastAPI Router + Middleware    │
+│  (Rate Limiter, Exception Handlers) │
 └──────┬──────────────────────────────┘
        │
        ▼
 ┌─────────────────────────────────────┐
-│       PostService Layer             │
-│ (src/blogcache/services/post_service.py) │
+│       PostService (Business Logic)  │
+│         Uses DTOs internally        │
 │                                     │
 │  ┌──────────────────────────────┐  │
 │  │   Cache-Aside Pattern:       │  │
-│  │   1. Check Redis             │  │
-│  │   2. If miss → PostgreSQL    │  │
-│  │   3. Store in Redis (5min)   │  │
-│  │   4. Return data             │  │
+│  │   1. Check CacheService      │  │
+│  │   2. If miss → Repository    │  │
+│  │   3. Store in Cache (5min)   │  │
+│  │   4. Return DTO              │  │
 │  └──────────────────────────────┘  │
 └──────┬────────────────────┬─────────┘
        │                    │
        ▼                    ▼
 ┌─────────────┐      ┌─────────────┐
-│    Redis    │      │ PostgreSQL  │
-│   (Cache)   │      │  (Database) │
-└─────────────┘      └─────────────┘
+│CacheService │      │PostRepository│
+│   (Redis)   │      │ (Data Access)│
+└─────────────┘      └──────┬───────┘
+                            │
+                            ▼
+                     ┌─────────────┐
+                     │ PostgreSQL  │
+                     │  (Database) │
+                     └─────────────┘
 ```
+
+**Key Architecture Patterns:**
+- **Repository Pattern** — Data access abstraction (PostRepository)
+- **Service Layer** — Business logic (PostService)
+- **DTOs** — Internal data transfer (PostDTO)
+- **Dependency Injection** — FastAPI's DI system
+- **Exception Handling** — Custom exceptions with handlers
+- **Observability** — Prometheus metrics + structured logging
 
 ### 🎯 Why Cache-Aside Pattern?
 
@@ -104,13 +123,15 @@ High-performance blog API built with **FastAPI** and **Redis caching** to optimi
 
 ### 📋 API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/posts/` | Create new post |
-| `GET` | `/posts/{id}` | Get post by ID (cached) |
-| `PUT` | `/posts/{id}` | Update post (invalidates cache) |
-| `DELETE` | `/posts/{id}` | Delete post (invalidates cache) |
-| `GET` | `/docs` | OpenAPI documentation |
+| Method | Endpoint | Description | Rate Limit |
+|--------|----------|-------------|------------|
+| `POST` | `/posts/` | Create new post | 10/min |
+| `GET` | `/posts/{id}` | Get post by ID (cached) | 100/min |
+| `PUT` | `/posts/{id}` | Update post (invalidates cache) | 100/min |
+| `DELETE` | `/posts/{id}` | Delete post (invalidates cache) | 100/min |
+| `GET` | `/health` | Health check with dependency status | - |
+| `GET` | `/metrics` | Prometheus metrics | - |
+| `GET` | `/docs` | OpenAPI documentation | - |
 
 ### 🚀 Installation & Setup
 
@@ -197,11 +218,11 @@ poetry run pytest --cov=src/blogcache --cov-report=html
 open htmlcov/index.html
 ```
 
-**Test coverage:** 83% (42 tests passing)
+**Test coverage:** 83% (53 tests passing)
 
 **Test structure:**
 - `integration/` — 29 tests for Cache-Aside, CRUD API, atomic views, validation
-- `unit/` — 13 tests for schemas and service logic
+- `unit/` — 24 tests for schemas, DTOs, services, config, health checks, metrics
 - See `tests/README.md` for detailed documentation
 
 ### 🗄️ Database Migrations
@@ -241,21 +262,34 @@ CREATE INDEX idx_posts_created_at ON posts(created_at DESC);
 - `idx_posts_created_at` — Optimized for sorting by date
 
 ### 🔒 Error Handling
-- **404 Not Found** — Post doesn't exist
+- **404 Not Found** — Post doesn't exist (PostNotFoundError)
 - **422 Unprocessable Entity** — Validation errors
-- **500 Internal Server Error** — Database/Redis failures (logged)
+- **429 Too Many Requests** — Rate limit exceeded
+- **500 Internal Server Error** — Database/Redis failures (DatabaseError, CacheError)
+- **503 Service Unavailable** — Health check failed
+
+**Custom Exceptions:**
+- `BlogCacheException` — Base exception
+- `PostNotFoundError` — Post not found
+- `CacheError` — Redis operation failed
+- `DatabaseError` — PostgreSQL operation failed
 
 ### 📁 Project Structure
 ```
 blogcache/
 ├── src/blogcache/
 │   ├── api/              # FastAPI routers
-│   ├── core/             # Config, database setup
+│   ├── core/             # Config, database, exceptions, logging, metrics
 │   ├── models/           # SQLAlchemy models
-│   ├── schemas/          # Pydantic schemas
-│   ├── services/         # Business logic (PostService)
+│   ├── schemas/          # Pydantic schemas (API layer)
+│   ├── dto/              # Data Transfer Objects (internal)
+│   ├── services/         # Business logic (PostService, CacheService)
+│   ├── repositories/     # Data access layer (PostRepository)
 │   └── main.py           # Application entry point
-├── tests/                # Integration & unit tests
+├── tests/
+│   ├── integration/      # 29 integration tests (API, cache, DB)
+│   ├── unit/             # 24 unit tests (schemas, DTOs, services)
+│   └── README.md         # Test documentation
 ├── alembic/              # Database migrations
 ├── scripts/              # Docker entrypoint scripts
 ├── docker-compose.*.yml  # Docker configurations
@@ -265,12 +299,17 @@ blogcache/
 ```
 
 ### 🎓 Code Quality
-- **Clean architecture** — Separation of concerns (API → Service → Repository)
-- **Type hints** — Full typing with mypy support
+- **Clean Architecture** — Layered design (API → Service → Repository → Database)
+- **Repository Pattern** — Data access abstraction
+- **DTOs** — Decoupled internal data transfer
+- **Type hints** — Full typing with mypy compliance
 - **Async/await** — Non-blocking I/O operations
-- **Dependency injection** — FastAPI's DI system
-- **Error handling** — Proper HTTP status codes
-- **Testing** — Integration tests for cache logic
+- **Dependency Injection** — FastAPI's DI system
+- **Custom Exceptions** — Proper error handling with context
+- **Structured Logging** — Loguru with rotation (10MB, 7 days, zip)
+- **Observability** — Prometheus metrics (cache hits, DB queries, request duration)
+- **Rate Limiting** — Protection against abuse (slowapi)
+- **Testing** — 53 tests (29 integration + 24 unit) with 83% coverage
 
 ---
 
@@ -287,9 +326,14 @@ blogcache/
 - 👁️ **Учет уникальных просмотров** (один просмотр с IP за 24 часа)
 - ⚡ **Атомарный счетчик просмотров** (защита от race condition)
 - 🗄️ **Async SQLAlchemy** + PostgreSQL с asyncpg
+- 🏗️ **Чистая архитектура** (Repository Pattern + DTO)
+- 📊 **Метрики Prometheus** для мониторинга
+- 🛡️ **Rate limiting** (100/мин глобально, 10/мин для POST)
+- 🏥 **Health checks** со статусом зависимостей
+- 📝 **Структурированное логирование** с Loguru (ротация + сжатие)
 - 🔧 **Миграции Alembic** для версионирования БД
 - 🐳 **Docker Compose** (PostgreSQL + Redis)
-- 🧪 **42 теста** с покрытием 83% (29 интеграционных + 13 unit тестов)
+- 🧪 **53 теста** с покрытием 83% (29 интеграционных + 24 unit тестов)
 - 📚 **Автогенерация OpenAPI документации** на `/docs`
 
 ### 🏗️ Архитектура
@@ -301,30 +345,44 @@ blogcache/
        │ HTTP запрос
        ▼
 ┌─────────────────────────────────────┐
-│       FastAPI Router                │
-│    (src/blogcache/api/posts.py)     │
+│   FastAPI Router + Middleware       │
+│  (Rate Limiter, Exception Handlers) │
 └──────┬──────────────────────────────┘
        │
        ▼
 ┌─────────────────────────────────────┐
-│       Слой PostService              │
-│ (src/blogcache/services/post_service.py) │
+│   PostService (Бизнес-логика)       │
+│      Использует DTO внутри          │
 │                                     │
 │  ┌──────────────────────────────┐  │
 │  │   Паттерн Cache-Aside:       │  │
-│  │   1. Проверка Redis          │  │
-│  │   2. Промах → PostgreSQL     │  │
-│  │   3. Сохранение в Redis (5м) │  │
-│  │   4. Возврат данных          │  │
+│  │   1. Проверка CacheService   │  │
+│  │   2. Промах → Repository     │  │
+│  │   3. Сохранение в Cache (5м) │  │
+│  │   4. Возврат DTO             │  │
 │  └──────────────────────────────┘  │
 └──────┬────────────────────┬─────────┘
        │                    │
        ▼                    ▼
 ┌─────────────┐      ┌─────────────┐
-│    Redis    │      │ PostgreSQL  │
-│    (Кеш)    │      │    (БД)     │
-└─────────────┘      └─────────────┘
+│CacheService │      │PostRepository│
+│   (Redis)   │      │(Доступ к БД)│
+└─────────────┘      └──────┬───────┘
+                            │
+                            ▼
+                     ┌─────────────┐
+                     │ PostgreSQL  │
+                     │    (БД)     │
+                     └─────────────┘
 ```
+
+**Ключевые архитектурные паттерны:**
+- **Repository Pattern** — Абстракция доступа к данным (PostRepository)
+- **Service Layer** — Бизнес-логика (PostService)
+- **DTO** — Внутренняя передача данных (PostDTO)
+- **Dependency Injection** — Система DI FastAPI
+- **Exception Handling** — Кастомные исключения с обработчиками
+- **Observability** — Метрики Prometheus + структурированное логирование
 
 ### 🎯 Почему паттерн Cache-Aside?
 
@@ -365,13 +423,15 @@ blogcache/
 
 ### 📋 API endpoints
 
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| `POST` | `/posts/` | Создать новый пост |
-| `GET` | `/posts/{id}` | Получить пост по ID (с кешированием) |
-| `PUT` | `/posts/{id}` | Обновить пост (инвалидирует кеш) |
-| `DELETE` | `/posts/{id}` | Удалить пост (инвалидирует кеш) |
-| `GET` | `/docs` | OpenAPI документация |
+| Метод | Endpoint | Описание | Rate Limit |
+|-------|----------|----------|------------|
+| `POST` | `/posts/` | Создать новый пост | 10/мин |
+| `GET` | `/posts/{id}` | Получить пост по ID (с кешированием) | 100/мин |
+| `PUT` | `/posts/{id}` | Обновить пост (инвалидирует кеш) | 100/мин |
+| `DELETE` | `/posts/{id}` | Удалить пост (инвалидирует кеш) | 100/мин |
+| `GET` | `/health` | Health check со статусом зависимостей | - |
+| `GET` | `/metrics` | Метрики Prometheus | - |
+| `GET` | `/docs` | OpenAPI документация | - |
 
 ### 🚀 Установка и запуск
 
@@ -458,11 +518,11 @@ poetry run pytest --cov=src/blogcache --cov-report=html
 open htmlcov/index.html
 ```
 
-**Покрытие тестами:** 83% (42 теста проходят)
+**Покрытие тестами:** 83% (53 теста проходят)
 
 **Структура тестов:**
 - `integration/` — 29 тестов для Cache-Aside, CRUD API, атомарных просмотров, валидации
-- `unit/` — 13 тестов для схем и логики сервисов
+- `unit/` — 24 теста для схем, DTO, сервисов, конфигурации, health checks, метрик
 - См. `tests/README.md` для подробной документации
 
 ### 🗄️ Миграции базы данных
@@ -502,21 +562,34 @@ CREATE INDEX idx_posts_created_at ON posts(created_at DESC);
 - `idx_posts_created_at` — Оптимизация сортировки по дате
 
 ### 🔒 Обработка ошибок
-- **404 Not Found** — Пост не существует
+- **404 Not Found** — Пост не существует (PostNotFoundError)
 - **422 Unprocessable Entity** — Ошибки валидации
-- **500 Internal Server Error** — Сбои БД/Redis (логируются)
+- **429 Too Many Requests** — Превышен rate limit
+- **500 Internal Server Error** — Сбои БД/Redis (DatabaseError, CacheError)
+- **503 Service Unavailable** — Health check провален
+
+**Кастомные исключения:**
+- `BlogCacheException` — Базовое исключение
+- `PostNotFoundError` — Пост не найден
+- `CacheError` — Ошибка операции Redis
+- `DatabaseError` — Ошибка операции PostgreSQL
 
 ### 📁 Структура проекта
 ```
 blogcache/
 ├── src/blogcache/
 │   ├── api/              # FastAPI роутеры
-│   ├── core/             # Конфигурация, настройка БД
+│   ├── core/             # Конфигурация, БД, исключения, логирование, метрики
 │   ├── models/           # SQLAlchemy модели
-│   ├── schemas/          # Pydantic схемы
-│   ├── services/         # Бизнес-логика (PostService)
+│   ├── schemas/          # Pydantic схемы (API слой)
+│   ├── dto/              # Data Transfer Objects (внутренние)
+│   ├── services/         # Бизнес-логика (PostService, CacheService)
+│   ├── repositories/     # Слой доступа к данным (PostRepository)
 │   └── main.py           # Точка входа приложения
-├── tests/                # Интеграционные и unit тесты
+├── tests/
+│   ├── integration/      # 29 интеграционных тестов (API, кеш, БД)
+│   ├── unit/             # 24 unit теста (схемы, DTO, сервисы)
+│   └── README.md         # Документация тестов
 ├── alembic/              # Миграции БД
 ├── scripts/              # Скрипты для Docker
 ├── docker-compose.*.yml  # Конфигурации Docker
@@ -526,12 +599,17 @@ blogcache/
 ```
 
 ### 🎓 Качество кода
-- **Чистая архитектура** — Разделение ответственности (API → Service → Repository)
-- **Аннотации типов** — Полная типизация с поддержкой mypy
+- **Чистая архитектура** — Слоистый дизайн (API → Service → Repository → Database)
+- **Repository Pattern** — Абстракция доступа к данным
+- **DTO** — Разделенная внутренняя передача данных
+- **Аннотации типов** — Полная типизация с соответствием mypy
 - **Async/await** — Неблокирующие I/O операции
-- **Dependency injection** — Система DI FastAPI
-- **Обработка ошибок** — Корректные HTTP статус-коды
-- **Тестирование** — Интеграционные тесты логики кеширования
+- **Dependency Injection** — Система DI FastAPI
+- **Кастомные исключения** — Правильная обработка ошибок с контекстом
+- **Структурированное логирование** — Loguru с ротацией (10MB, 7 дней, zip)
+- **Observability** — Метрики Prometheus (попадания в кеш, запросы к БД, длительность запросов)
+- **Rate Limiting** — Защита от злоупотреблений (slowapi)
+- **Тестирование** — 53 теста (29 интеграционных + 24 unit) с покрытием 83%
 
 ---
 
