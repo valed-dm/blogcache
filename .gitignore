@@ -187,3 +187,4 @@ media/*
 !media/.gitkeep
 static/*
 !static/.gitkeep
+logs/
