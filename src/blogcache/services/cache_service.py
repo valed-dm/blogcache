@@ -9,6 +9,8 @@ from typing import Optional
 from redis.asyncio import Redis
 
 from ..core.logging import log
+from ..core.metrics import cache_hits
+from ..core.metrics import cache_misses
 
 
 class CacheService:
@@ -34,7 +36,12 @@ class CacheService:
             Cached value or None if not found or error occurred.
         """
         try:
-            return await self.redis.get(key)
+            value = await self.redis.get(key)
+            if value:
+                cache_hits.labels(operation="cache_get").inc()
+            else:
+                cache_misses.labels(operation="cache_get").inc()
+            return value
         except Exception as e:
             log.warning("Cache get failed for key={}: {}", key, e)
             return None

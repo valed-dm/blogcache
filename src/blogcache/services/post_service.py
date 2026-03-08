@@ -6,6 +6,10 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.logging import log
+from ..core.metrics import cache_hits
+from ..core.metrics import cache_misses
+from ..core.metrics import posts_created
+from ..core.metrics import posts_viewed
 from ..models.post import Post
 from ..repositories.post_repository import PostRepository
 from ..schemas.post import PostCreate
@@ -32,6 +36,7 @@ class PostService:
         """Create a new post"""
         db_post = Post(**post_data.model_dump())
         created_post = await self.repository.create(db_post)
+        posts_created.inc()
         log.info("Created post id={} title={}", created_post.id, created_post.title)
         return PostResponse.model_validate(created_post)
 
@@ -44,10 +49,12 @@ class PostService:
         # Try cache first
         cached = await self.cache.get(cache_key)
         if cached:
+            cache_hits.labels(operation="get_post").inc()
             log.debug("Cache hit for post_id={}", post_id)
             asyncio.create_task(self._increment_views_in_background(post_id, client_ip))
             return PostResponse(**json.loads(cached))
 
+        cache_misses.labels(operation="get_post").inc()
         log.debug("Cache miss for post_id={}, querying database", post_id)
 
         db_post = await self.repository.get_by_id(post_id)
@@ -58,6 +65,7 @@ class PostService:
         should_increment = await self._should_increment_view(post_id, client_ip)
         if should_increment:
             await self.repository.increment_views(post_id)
+            posts_viewed.inc()
             log.debug("Incremented views for post_id={} from ip={}", post_id, client_ip)
             # Fetch fresh data after increment
             db_post = await self.repository.get_by_id(post_id)

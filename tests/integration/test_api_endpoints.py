@@ -52,3 +52,15 @@ async def test_health_check_unhealthy_redis(client: AsyncClient, monkeypatch):
     data = response.json()
     assert data["status"] == "unhealthy"
     assert data["checks"]["redis"] == "unhealthy"
+
+
+async def test_metrics_endpoint(client: AsyncClient):
+    """Test that Prometheus metrics endpoint is accessible."""
+    response = await client.get("/metrics")
+    assert response.status_code == 200
+    assert "text/plain" in response.headers["content-type"]
+    content = response.text
+    # Check for some expected metrics
+    assert "blogcache_cache_hits_total" in content
+    assert "blogcache_cache_misses_total" in content
+    assert "blogcache_posts_created_total" in content

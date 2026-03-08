@@ -11,6 +11,8 @@ from fastapi import FastAPI
 from fastapi import status
 from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
+from prometheus_client import CONTENT_TYPE_LATEST
+from prometheus_client import generate_latest
 from sqlalchemy import text
 
 from .api import posts
@@ -115,6 +117,13 @@ def create_app() -> FastAPI:
                 "checks": checks,
             },
         )
+
+    @application.get("/metrics", include_in_schema=False)
+    async def metrics():
+        """Prometheus metrics endpoint."""
+        from fastapi import Response
+
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     return application
 
