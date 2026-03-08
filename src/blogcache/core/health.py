@@ -3,11 +3,16 @@
 This module provides health checks for database and cache connectivity.
 """
 
-from redis.asyncio import Redis
+from typing import TYPE_CHECKING
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from .logging import log
+
+
+if TYPE_CHECKING:
+    from redis.asyncio import Redis
 
 
 class HealthCheckService:
@@ -32,7 +37,7 @@ class HealthCheckService:
             return False
 
     @staticmethod
-    async def check_redis(redis_client: Redis) -> bool:  # type: ignore[type-arg]
+    async def check_redis(redis_client: "Redis") -> bool:
         """Check Redis connectivity.
 
         Args:
@@ -42,7 +47,7 @@ class HealthCheckService:
             True if healthy, False otherwise.
         """
         try:
-            await redis_client.ping()
+            await redis_client.ping()  # type: ignore[misc]
             return True
         except Exception as e:
             log.error("Redis health check failed: {}", e)
