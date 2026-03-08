@@ -4,6 +4,7 @@ This module contains all exception handlers for custom exceptions,
 keeping the main application file clean and focused.
 """
 
+from fastapi import FastAPI
 from fastapi import Request
 from fastapi import status
 from fastapi.responses import JSONResponse
@@ -55,13 +56,13 @@ async def blogcache_exception_handler(
     )
 
 
-def register_exception_handlers(app) -> None:
+def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers with the FastAPI application.
 
     Args:
         app: The FastAPI application instance.
     """
-    app.add_exception_handler(PostNotFoundError, post_not_found_handler)
-    app.add_exception_handler(CacheError, cache_error_handler)
-    app.add_exception_handler(DatabaseError, database_error_handler)
-    app.add_exception_handler(BlogCacheException, blogcache_exception_handler)
+    app.add_exception_handler(PostNotFoundError, post_not_found_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(CacheError, cache_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(DatabaseError, database_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(BlogCacheException, blogcache_exception_handler)  # type: ignore[arg-type]
