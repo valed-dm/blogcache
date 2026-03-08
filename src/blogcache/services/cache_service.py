@@ -41,7 +41,7 @@ class CacheService:
                 cache_hits.labels(operation="cache_get").inc()
             else:
                 cache_misses.labels(operation="cache_get").inc()
-            return value
+            return str(value) if value else None
         except Exception as e:
             log.warning("Cache get failed for key={}: {}", key, e)
             return None
