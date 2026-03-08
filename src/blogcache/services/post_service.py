@@ -10,6 +10,7 @@ from ..core.metrics import cache_hits
 from ..core.metrics import cache_misses
 from ..core.metrics import posts_created
 from ..core.metrics import posts_viewed
+from ..dto.post_dto import PostDTO
 from ..models.post import Post
 from ..repositories.post_repository import PostRepository
 from ..schemas.post import PostCreate
@@ -38,7 +39,10 @@ class PostService:
         created_post = await self.repository.create(db_post)
         posts_created.inc()
         log.info("Created post id={} title={}", created_post.id, created_post.title)
-        return PostResponse.model_validate(created_post)
+
+        # Convert to DTO for internal processing
+        dto = PostDTO.from_model(created_post)
+        return PostResponse(**dto.to_dict())
 
     async def get_post(
         self, post_id: int, client_ip: str = "unknown"
@@ -70,7 +74,9 @@ class PostService:
             # Fetch fresh data after increment
             db_post = await self.repository.get_by_id(post_id)
 
-        post_response = PostResponse.model_validate(db_post)
+        # Convert to DTO for internal processing
+        dto = PostDTO.from_model(db_post)
+        post_response = PostResponse(**dto.to_dict())
 
         # Store in cache
         await self.cache.set(cache_key, post_response.model_dump_json())
@@ -136,7 +142,9 @@ class PostService:
         await self.cache.delete(self._cache_key(post_id))
         log.info("Updated post_id={}, invalidated cache", post_id)
 
-        return PostResponse.model_validate(updated_post)
+        # Convert to DTO for internal processing
+        dto = PostDTO.from_model(updated_post)
+        return PostResponse(**dto.to_dict())
 
     async def delete_post(self, post_id: int) -> bool:
         """Delete post and invalidate cache"""
@@ -154,4 +162,6 @@ class PostService:
     ) -> list[PostResponse]:
         """Get all posts with pagination"""
         posts = await self.repository.get_all(skip, limit)
-        return [PostResponse.model_validate(post) for post in posts]
+        # Convert to DTOs for internal processing
+        dtos = [PostDTO.from_model(post) for post in posts]
+        return [PostResponse(**dto.to_dict()) for dto in dtos]
