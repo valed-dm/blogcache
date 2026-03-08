@@ -3,15 +3,11 @@ import json
 from typing import Optional
 
 from redis.asyncio import Redis
-from sqlalchemy import delete
-from sqlalchemy import select
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.exceptions import DatabaseError
 from ..core.logging import log
 from ..models.post import Post
+from ..repositories.post_repository import PostRepository
 from ..schemas.post import PostCreate
 from ..schemas.post import PostResponse
 from ..schemas.post import PostUpdate
@@ -20,7 +16,7 @@ from .cache_service import CacheService
 
 class PostService:
     def __init__(self, db: AsyncSession, redis: Redis):
-        self.db = db
+        self.repository = PostRepository(db)
         self.cache = CacheService(redis, ttl=300)  # 5 minutes
         self.cache_prefix = "post:"
         self.view_prefix = "view:"
@@ -34,17 +30,10 @@ class PostService:
 
     async def create_post(self, post_data: PostCreate) -> PostResponse:
         """Create a new post"""
-        try:
-            db_post = Post(**post_data.model_dump())
-            self.db.add(db_post)
-            await self.db.commit()
-            await self.db.refresh(db_post)
-            log.info("Created post id={} title={}", db_post.id, db_post.title)
-            return PostResponse.model_validate(db_post)
-        except SQLAlchemyError as e:
-            await self.db.rollback()
-            log.error("Database error creating post: {}", e)
-            raise DatabaseError("create", e) from e
+        db_post = Post(**post_data.model_dump())
+        created_post = await self.repository.create(db_post)
+        log.info("Created post id={} title={}", created_post.id, created_post.title)
+        return PostResponse.model_validate(created_post)
 
     async def get_post(
         self, post_id: int, client_ip: str = "unknown"
@@ -61,35 +50,17 @@ class PostService:
 
         log.debug("Cache miss for post_id={}, querying database", post_id)
 
-        try:
-            result = await self.db.execute(select(Post).where(Post.id == post_id))
-            db_post = result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            log.error("Database error fetching post_id={}: {}", post_id, e)
-            raise DatabaseError("select", e) from e
-
+        db_post = await self.repository.get_by_id(post_id)
         if not db_post:
             log.debug("Post not found: post_id={}", post_id)
             return None
 
         should_increment = await self._should_increment_view(post_id, client_ip)
         if should_increment:
-            try:
-                await self.db.execute(
-                    text("UPDATE posts SET views = views + 1 WHERE id = :id"),
-                    {"id": post_id},
-                )
-                await self.db.commit()
-                await self.db.refresh(db_post)
-                log.debug(
-                    "Incremented views for post_id={} from ip={}", post_id, client_ip
-                )
-            except SQLAlchemyError as e:
-                await self.db.rollback()
-                log.error(
-                    "Database error incrementing views for post_id={}: {}", post_id, e
-                )
-                raise DatabaseError("update", e) from e
+            await self.repository.increment_views(post_id)
+            log.debug("Incremented views for post_id={} from ip={}", post_id, client_ip)
+            # Fetch fresh data after increment
+            db_post = await self.repository.get_by_id(post_id)
 
         post_response = PostResponse.model_validate(db_post)
 
@@ -125,11 +96,8 @@ class PostService:
             AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
             async with AsyncSessionLocal() as session:
-                await session.execute(
-                    text("UPDATE posts SET views = views + 1 WHERE id = :id"),
-                    {"id": post_id},
-                )
-                await session.commit()
+                repo = PostRepository(session)
+                await repo.increment_views(post_id)
 
             await self.cache.delete(self._cache_key(post_id))
             log.debug(
@@ -137,9 +105,6 @@ class PostService:
                 post_id,
                 client_ip,
             )
-        except DatabaseError:
-            # Already logged, don't re-raise in background task
-            pass
         except Exception as e:
             log.error(
                 "Unexpected error incrementing views for post_id={}: {}", post_id, e
@@ -149,13 +114,7 @@ class PostService:
         self, post_id: int, post_data: PostUpdate
     ) -> Optional[PostResponse]:
         """Update post and invalidate cache"""
-        try:
-            result = await self.db.execute(select(Post).where(Post.id == post_id))
-            db_post = result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            log.error("Database error fetching post_id={} for update: {}", post_id, e)
-            raise DatabaseError("select", e) from e
-
+        db_post = await self.repository.get_by_id(post_id)
         if not db_post:
             log.debug("Update failed: post_id={} not found", post_id)
             return None
@@ -164,34 +123,18 @@ class PostService:
         for field, value in update_data.items():
             setattr(db_post, field, value)
 
-        try:
-            await self.db.commit()
-            await self.db.refresh(db_post)
-        except SQLAlchemyError as e:
-            await self.db.rollback()
-            log.error("Database error updating post_id={}: {}", post_id, e)
-            raise DatabaseError("update", e) from e
+        updated_post = await self.repository.update(db_post)
 
-        cache_key = self._cache_key(post_id)
-        await self.cache.delete(cache_key)
+        await self.cache.delete(self._cache_key(post_id))
         log.info("Updated post_id={}, invalidated cache", post_id)
 
-        return PostResponse.model_validate(db_post)
+        return PostResponse.model_validate(updated_post)
 
     async def delete_post(self, post_id: int) -> bool:
         """Delete post and invalidate cache"""
-        try:
-            result = await self.db.execute(
-                delete(Post).where(Post.id == post_id).returning(Post.id)
-            )
-            deleted_id = result.scalar_one_or_none()
-        except SQLAlchemyError as e:
-            log.error("Database error deleting post_id={}: {}", post_id, e)
-            raise DatabaseError("delete", e) from e
-
-        if deleted_id:
+        deleted = await self.repository.delete(post_id)
+        if deleted:
             await self.cache.delete(self._cache_key(post_id))
-            await self.db.commit()
             log.info("Deleted post_id={}, invalidated cache", post_id)
             return True
 
@@ -202,12 +145,5 @@ class PostService:
         self, skip: int = 0, limit: int = 100
     ) -> list[PostResponse]:
         """Get all posts with pagination"""
-        try:
-            result = await self.db.execute(
-                select(Post).order_by(Post.created_at.desc()).offset(skip).limit(limit)
-            )
-            posts = result.scalars().all()
-            return [PostResponse.model_validate(post) for post in posts]
-        except SQLAlchemyError as e:
-            log.error("Database error fetching posts: {}", e)
-            raise DatabaseError("select", e) from e
+        posts = await self.repository.get_all(skip, limit)
+        return [PostResponse.model_validate(post) for post in posts]
