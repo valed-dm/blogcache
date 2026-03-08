@@ -3,6 +3,7 @@
 This module provides health checks for database and cache connectivity.
 """
 
+from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -31,7 +32,7 @@ class HealthCheckService:
             return False
 
     @staticmethod
-    async def check_redis(redis_client) -> bool:
+    async def check_redis(redis_client: Redis) -> bool:  # type: ignore[type-arg]
         """Check Redis connectivity.
 
         Args:
