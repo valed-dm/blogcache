@@ -13,6 +13,10 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
 from prometheus_client import CONTENT_TYPE_LATEST
 from prometheus_client import generate_latest
+from slowapi import Limiter
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy import text
 
 from .api import posts
@@ -74,6 +78,9 @@ def create_app() -> FastAPI:
     Returns:
         The configured FastAPI application instance.
     """
+    # Initialize rate limiter
+    limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+
     application = FastAPI(
         title=settings.app_name,
         version="0.1.0",
@@ -83,6 +90,10 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
         lifespan=lifespan,
     )
+
+    # Add rate limiter to app state
+    application.state.limiter = limiter
+    application.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     application.include_router(posts.router)
     register_exception_handlers(application)

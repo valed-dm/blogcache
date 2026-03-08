@@ -6,6 +6,8 @@ from fastapi import Depends
 from fastapi import Request
 from fastapi import status
 from redis.asyncio import Redis
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.database import get_db
@@ -18,6 +20,7 @@ from ..services.post_service import PostService
 
 
 router = APIRouter(prefix="/posts", tags=["posts"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 async def get_post_service(
@@ -28,11 +31,13 @@ async def get_post_service(
 
 
 @router.post("/", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def create_post(
+    request: Request,
     post_data: PostCreate,
     service: Annotated[PostService, Depends(get_post_service)],
 ) -> PostResponse:
-    """Create a new blog post"""
+    """Create a new blog post (rate limited: 10/minute)."""
     return await service.create_post(post_data)
 
 
