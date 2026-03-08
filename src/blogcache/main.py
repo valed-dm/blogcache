@@ -17,7 +17,6 @@ from slowapi import Limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from sqlalchemy import text
 
 from .api import posts
 from .core.config import settings
@@ -42,20 +41,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     log.info("Debug mode: {}", settings.debug)
     log.info("Database: {}", settings.postgres_db)
 
-    try:
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-        log.success("✓ PostgreSQL connection established")
-    except Exception as e:
-        log.error("✗ PostgreSQL connection failed: {}", e)
-        raise
+    postgres_healthy = await HealthCheckService.check_postgres(engine)
+    if not postgres_healthy:
+        raise RuntimeError("PostgreSQL connection failed")
+    log.success("✓ PostgreSQL connection established")
 
-    try:
-        await redis_client.ping()  # type: ignore[misc]
-        log.success("✓ Redis connection established")
-    except Exception as e:
-        log.error("✗ Redis connection failed: {}", e)
-        raise
+    redis_healthy = await HealthCheckService.check_redis(redis_client)
+    if not redis_healthy:
+        raise RuntimeError("Redis connection failed")
+    log.success("✓ Redis connection established")
 
     log.info("Application startup complete")
 
