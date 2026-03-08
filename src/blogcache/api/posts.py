@@ -3,7 +3,6 @@ from typing import List
 
 from fastapi import APIRouter
 from fastapi import Depends
-from fastapi import HTTPException
 from fastapi import Request
 from fastapi import status
 from redis.asyncio import Redis
@@ -11,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.database import get_db
 from ..core.database import get_redis
+from ..core.exceptions import PostNotFoundError
 from ..schemas.post import PostCreate
 from ..schemas.post import PostResponse
 from ..schemas.post import PostUpdate
@@ -53,16 +53,13 @@ async def read_post(
     service: Annotated[PostService, Depends(get_post_service)],
 ) -> PostResponse:
     """Get post by ID (with caching and unique view tracking)"""
-    # Check X-Forwarded-For header first (for proxies/load balancers)
     client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
     if not client_ip:
         client_ip = request.client.host if request.client else "unknown"
 
     post = await service.get_post(post_id, client_ip)
     if not post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Post not found"
-        )
+        raise PostNotFoundError(post_id)
     return post
 
 
@@ -75,9 +72,7 @@ async def update_post(
     """Update post and invalidate cache"""
     post = await service.update_post(post_id, post_data)
     if not post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Post not found"
-        )
+        raise PostNotFoundError(post_id)
     return post
 
 
@@ -89,7 +84,5 @@ async def delete_post(
     """Delete post and invalidate cache"""
     deleted = await service.delete_post(post_id)
     if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Post not found"
-        )
+        raise PostNotFoundError(post_id)
     return None

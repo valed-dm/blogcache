@@ -9,6 +9,9 @@ from typing import AsyncGenerator
 from typing import Dict
 
 from fastapi import FastAPI
+from fastapi import Request
+from fastapi import status
+from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
@@ -16,6 +19,8 @@ from .api import posts
 from .core.config import settings
 from .core.database import engine
 from .core.database import redis_client
+from .core.exceptions import BlogCacheException
+from .core.exceptions import PostNotFoundError
 from .core.logging import log
 
 
@@ -80,6 +85,28 @@ def create_app() -> FastAPI:
     )
 
     application.include_router(posts.router)
+
+    @application.exception_handler(PostNotFoundError)
+    async def post_not_found_handler(
+        request: Request, exc: PostNotFoundError
+    ) -> JSONResponse:
+        """Handle PostNotFoundError exceptions."""
+        log.debug("Post not found: post_id={}", exc.post_id)
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": str(exc)},
+        )
+
+    @application.exception_handler(BlogCacheException)
+    async def blogcache_exception_handler(
+        request: Request, exc: BlogCacheException
+    ) -> JSONResponse:
+        """Handle generic BlogCacheException exceptions."""
+        log.error("BlogCache error: {}", exc)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Internal server error"},
+        )
 
     @application.get("/", include_in_schema=False)
     async def root() -> RedirectResponse:
