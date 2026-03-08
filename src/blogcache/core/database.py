@@ -23,8 +23,7 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-# Redis
-redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
+redis_client: Redis = Redis.from_url(settings.redis_url, decode_responses=True)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

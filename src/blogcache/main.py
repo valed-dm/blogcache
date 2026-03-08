@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         raise
 
     try:
-        await redis_client.ping()
+        await redis_client.ping()  # type: ignore[misc]
         log.success("✓ Redis connection established")
     except Exception as e:
         log.error("✗ Redis connection failed: {}", e)
