@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi import Response
 from fastapi import status
 from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
@@ -124,10 +125,8 @@ def create_app() -> FastAPI:
         )
 
     @application.get("/metrics", include_in_schema=False)
-    async def metrics():
+    async def metrics() -> Response:
         """Prometheus metrics endpoint."""
-        from fastapi import Response
-
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     return application
