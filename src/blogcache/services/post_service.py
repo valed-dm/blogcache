@@ -9,28 +9,28 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.exceptions import CacheError
 from ..core.exceptions import DatabaseError
 from ..core.logging import log
 from ..models.post import Post
 from ..schemas.post import PostCreate
 from ..schemas.post import PostResponse
 from ..schemas.post import PostUpdate
+from .cache_service import CacheService
 
 
 class PostService:
     def __init__(self, db: AsyncSession, redis: Redis):
         self.db = db
-        self.redis = redis
+        self.cache = CacheService(redis, ttl=300)  # 5 minutes
         self.cache_prefix = "post:"
-        self.cache_ttl = 300  # 5 minutes
+        self.view_prefix = "view:"
 
     def _cache_key(self, post_id: int) -> str:
         return f"{self.cache_prefix}{post_id}"
 
     def _view_key(self, post_id: int, client_ip: str) -> str:
         """Generate Redis key for tracking unique views"""
-        return f"view:{post_id}:{client_ip}"
+        return f"{self.view_prefix}{post_id}:{client_ip}"
 
     async def create_post(self, post_data: PostCreate) -> PostResponse:
         """Create a new post"""
@@ -52,19 +52,12 @@ class PostService:
         """Get post by ID with caching and unique view tracking"""
         cache_key = self._cache_key(post_id)
 
-        try:
-            cached = await self.redis.get(cache_key)
-            if cached:
-                log.debug("Cache hit for post_id={}", post_id)
-                asyncio.create_task(
-                    self._increment_views_in_background(post_id, client_ip)
-                )
-                return PostResponse(**json.loads(cached))
-        except Exception as e:
-            # Cache errors are non-critical, log and fallback to DB
-            log.warning(
-                "Cache get failed for post_id={}, falling back to DB: {}", post_id, e
-            )
+        # Try cache first
+        cached = await self.cache.get(cache_key)
+        if cached:
+            log.debug("Cache hit for post_id={}", post_id)
+            asyncio.create_task(self._increment_views_in_background(post_id, client_ip))
+            return PostResponse(**json.loads(cached))
 
         log.debug("Cache miss for post_id={}, querying database", post_id)
 
@@ -100,16 +93,9 @@ class PostService:
 
         post_response = PostResponse.model_validate(db_post)
 
-        try:
-            await self.redis.setex(
-                cache_key,
-                self.cache_ttl,
-                post_response.model_dump_json(),
-            )
-            log.debug("Cached post_id={} with TTL={}s", post_id, self.cache_ttl)
-        except Exception as e:
-            # Cache errors are non-critical, log and continue
-            log.warning("Cache set failed for post_id={}: {}", post_id, e)
+        # Store in cache
+        await self.cache.set(cache_key, post_response.model_dump_json())
+        log.debug("Cached post_id={} with TTL={}s", post_id, self.cache.ttl)
 
         return post_response
 
@@ -117,21 +103,11 @@ class PostService:
         """Check if view should be counted (once per IP per 24h)"""
         view_key = self._view_key(post_id, client_ip)
 
-        try:
-            exists = await self.redis.exists(view_key)
-            if not exists:
-                await self.redis.setex(view_key, 86400, "1")  # 24 hours
-                return True
-            return False
-        except Exception as e:
-            # Cache errors are non-critical, fallback to counting the view
-            log.warning(
-                "Cache check failed for view tracking post_id={} ip={}: {}",
-                post_id,
-                client_ip,
-                e,
-            )
+        exists = await self.cache.exists(view_key)
+        if not exists:
+            await self.cache.set_with_expiry(view_key, "1", 86400)  # 24 hours
             return True
+        return False
 
     async def _increment_views_in_background(
         self, post_id: int, client_ip: str
@@ -155,13 +131,13 @@ class PostService:
                 )
                 await session.commit()
 
-            await self.redis.delete(self._cache_key(post_id))
+            await self.cache.delete(self._cache_key(post_id))
             log.debug(
                 "Background view increment for post_id={} from ip={}",
                 post_id,
                 client_ip,
             )
-        except (CacheError, DatabaseError):
+        except DatabaseError:
             # Already logged, don't re-raise in background task
             pass
         except Exception as e:
@@ -197,12 +173,8 @@ class PostService:
             raise DatabaseError("update", e) from e
 
         cache_key = self._cache_key(post_id)
-        try:
-            await self.redis.delete(cache_key)
-            log.info("Updated post_id={}, invalidated cache", post_id)
-        except Exception as e:
-            # Cache invalidation failure is non-critical
-            log.warning("Cache delete failed for post_id={}: {}", post_id, e)
+        await self.cache.delete(cache_key)
+        log.info("Updated post_id={}, invalidated cache", post_id)
 
         return PostResponse.model_validate(db_post)
 
@@ -218,15 +190,9 @@ class PostService:
             raise DatabaseError("delete", e) from e
 
         if deleted_id:
-            cache_key = self._cache_key(post_id)
-            try:
-                await self.redis.delete(cache_key)
-                await self.db.commit()
-                log.info("Deleted post_id={}, invalidated cache", post_id)
-            except Exception as e:
-                await self.db.rollback()
-                # Cache invalidation failure is non-critical
-                log.warning("Cache delete failed for post_id={}: {}", post_id, e)
+            await self.cache.delete(self._cache_key(post_id))
+            await self.db.commit()
+            log.info("Deleted post_id={}, invalidated cache", post_id)
             return True
 
         log.debug("Delete failed: post_id={} not found", post_id)
