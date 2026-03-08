@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 from typing import Optional
 
 from redis.asyncio import Redis
@@ -8,13 +7,11 @@ from sqlalchemy import delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.logging import log
 from ..models.post import Post
 from ..schemas.post import PostCreate
 from ..schemas.post import PostResponse
 from ..schemas.post import PostUpdate
-
-
-logger = logging.getLogger(__name__)
 
 
 class PostService:
@@ -37,6 +34,7 @@ class PostService:
         self.db.add(db_post)
         await self.db.commit()
         await self.db.refresh(db_post)
+        log.info("Created post id={} title={}", db_post.id, db_post.title)
         return PostResponse.model_validate(db_post)
 
     async def get_post(
@@ -46,17 +44,20 @@ class PostService:
         try:
             cached = await self.redis.get(self._cache_key(post_id))
             if cached:
+                log.debug("Cache hit for post_id={}", post_id)
                 asyncio.create_task(
                     self._increment_views_in_background(post_id, client_ip)
                 )
                 return PostResponse(**json.loads(cached))
         except Exception as e:
-            logger.error(f"Redis error in get_post: {e}")
+            log.warning("Redis error in get_post for post_id={}: {}", post_id, e)
 
+        log.debug("Cache miss for post_id={}, querying database", post_id)
         result = await self.db.execute(select(Post).where(Post.id == post_id))
         db_post = result.scalar_one_or_none()
 
         if not db_post:
+            log.debug("Post not found: post_id={}", post_id)
             return None
 
         should_increment = await self._should_increment_view(post_id, client_ip)
@@ -69,6 +70,7 @@ class PostService:
             )
             await self.db.commit()
             await self.db.refresh(db_post)
+            log.debug("Incremented views for post_id={} from ip={}", post_id, client_ip)
 
         post_response = PostResponse.model_validate(db_post)
         try:
@@ -77,8 +79,9 @@ class PostService:
                 self.cache_ttl,
                 post_response.model_dump_json(),
             )
+            log.debug("Cached post_id={} with TTL={}s", post_id, self.cache_ttl)
         except Exception as e:
-            logger.error(f"Redis error in setex: {e}")
+            log.warning("Redis error caching post_id={}: {}", post_id, e)
 
         return post_response
 
@@ -93,7 +96,12 @@ class PostService:
                 return True
             return False
         except Exception as e:
-            logger.error(f"Redis error in _should_increment_view: {e}")
+            log.warning(
+                "Redis error checking view for post_id={} ip={}: {}",
+                post_id,
+                client_ip,
+                e,
+            )
             return True  # Fallback: count the view
 
     async def _increment_views_in_background(
@@ -120,21 +128,25 @@ class PostService:
                 await session.commit()
 
             await self.redis.delete(self._cache_key(post_id))
+            log.debug(
+                "Background view increment for post_id={} from ip={}",
+                post_id,
+                client_ip,
+            )
         except Exception as e:
-            logger.error(f"Error incrementing views: {e}")
+            log.error("Error incrementing views for post_id={}: {}", post_id, e)
 
     async def update_post(
         self, post_id: int, post_data: PostUpdate
     ) -> Optional[PostResponse]:
         """Update post and invalidate cache"""
-        # Get existing post
         result = await self.db.execute(select(Post).where(Post.id == post_id))
         db_post = result.scalar_one_or_none()
 
         if not db_post:
+            log.debug("Update failed: post_id={} not found", post_id)
             return None
 
-        # Update fields
         update_data = post_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_post, field, value)
@@ -142,8 +154,8 @@ class PostService:
         await self.db.commit()
         await self.db.refresh(db_post)
 
-        # Invalidate cache
         await self.redis.delete(self._cache_key(post_id))
+        log.info("Updated post_id={}, invalidated cache", post_id)
 
         return PostResponse.model_validate(db_post)
 
@@ -155,11 +167,12 @@ class PostService:
         deleted_id = result.scalar_one_or_none()
 
         if deleted_id:
-            # Invalidate cache
             await self.redis.delete(self._cache_key(post_id))
             await self.db.commit()
+            log.info("Deleted post_id={}, invalidated cache", post_id)
             return True
 
+        log.debug("Delete failed: post_id={} not found", post_id)
         return False
 
     async def get_all_posts(
