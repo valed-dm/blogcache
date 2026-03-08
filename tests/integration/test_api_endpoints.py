@@ -3,8 +3,20 @@
 from httpx import AsyncClient
 
 
-async def test_health_check(client: AsyncClient):
+async def test_health_check(client: AsyncClient, monkeypatch):
     """Test GET /health returns healthy status with detailed checks."""
+    from src.blogcache.core.health import HealthCheckService
+
+    # Mock health checks to avoid connecting to main database
+    async def mock_check_postgres(*args, **kwargs):
+        return True
+
+    async def mock_check_redis(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(HealthCheckService, "check_postgres", mock_check_postgres)
+    monkeypatch.setattr(HealthCheckService, "check_redis", mock_check_redis)
+
     response = await client.get("/health")
     assert response.status_code == 200
     data = response.json()
