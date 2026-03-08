@@ -6,9 +6,10 @@ including routers and lifecycle events.
 
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from typing import Dict
 
 from fastapi import FastAPI
+from fastapi import status
+from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
@@ -17,6 +18,7 @@ from .core.config import settings
 from .core.database import engine
 from .core.database import redis_client
 from .core.exception_handlers import register_exception_handlers
+from .core.health import HealthCheckService
 from .core.logging import log
 
 
@@ -89,9 +91,30 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/docs")
 
     @application.get("/health")
-    async def health_check() -> Dict[str, str]:
-        """Health check endpoint."""
-        return {"status": "healthy", "service": settings.app_name}
+    async def health_check() -> JSONResponse:
+        """Health check endpoint with detailed status."""
+        postgres_healthy = await HealthCheckService.check_postgres(engine)
+        redis_healthy = await HealthCheckService.check_redis(redis_client)
+
+        checks = {
+            "postgres": "healthy" if postgres_healthy else "unhealthy",
+            "redis": "healthy" if redis_healthy else "unhealthy",
+        }
+
+        all_healthy = postgres_healthy and redis_healthy
+        status_code = (
+            status.HTTP_200_OK if all_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "status": "healthy" if all_healthy else "unhealthy",
+                "service": settings.app_name,
+                "version": "0.1.0",
+                "checks": checks,
+            },
+        )
 
     return application
 
