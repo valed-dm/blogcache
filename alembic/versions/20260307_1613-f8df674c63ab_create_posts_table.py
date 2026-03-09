@@ -30,17 +30,37 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("views", sa.Integer(), nullable=False, server_default="0"),
         sa.Column(
-            "created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column(
-            "updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_posts_id"), "posts", ["id"], unique=False)
+    op.create_index(
+        op.f("ix_posts_created_at"),
+        "posts",
+        ["created_at"],
+        postgresql_ops={"created_at": "DESC"},
+    )
+    op.create_index(
+        op.f("ix_posts_views"),
+        "posts",
+        ["views"],
+        postgresql_ops={"views": "DESC"},
+    )
 
 
 def downgrade() -> None:
     """Drop posts table."""
+    op.drop_index(op.f("ix_posts_views"), table_name="posts")
+    op.drop_index(op.f("ix_posts_created_at"), table_name="posts")
     op.drop_index(op.f("ix_posts_id"), table_name="posts")
     op.drop_table("posts")
