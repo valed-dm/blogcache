@@ -6,6 +6,8 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
 
+from .logging import log
+
 
 class Settings(BaseSettings):
     app_name: Annotated[str, Field(description="Application name")] = "blogcache"
@@ -67,11 +69,9 @@ class Settings(BaseSettings):
         Raises:
             ValueError: If configuration is invalid.
         """
-        from loguru import logger
-
         # Warn about default secret key in debug mode
         if self.debug and "change-in-production" in self.secret_key:
-            logger.warning(
+            log.warning(
                 "Using default SECRET_KEY in debug mode - change for production!"
             )
 
