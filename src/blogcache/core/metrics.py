@@ -8,17 +8,28 @@ from prometheus_client import Counter
 from prometheus_client import Histogram
 
 
-# Cache metrics
+# Cache metrics (business-level: e.g. get_post served from cache vs DB)
 cache_hits = Counter(
     "blogcache_cache_hits_total",
-    "Total number of cache hits",
+    "Total number of cache hits by operation (e.g. get_post)",
     ["operation"],
 )
 
 cache_misses = Counter(
     "blogcache_cache_misses_total",
-    "Total number of cache misses",
+    "Total number of cache misses by operation (e.g. get_post)",
     ["operation"],
+)
+
+# Cache backend metrics (low-level: every Redis get hit/miss)
+cache_backend_hits = Counter(
+    "blogcache_cache_backend_hits_total",
+    "Total number of Redis cache get() hits (low-level cache layer)",
+)
+
+cache_backend_misses = Counter(
+    "blogcache_cache_backend_misses_total",
+    "Total number of Redis cache get() misses (low-level cache layer)",
 )
 
 # Request metrics

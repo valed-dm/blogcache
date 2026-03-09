@@ -9,8 +9,8 @@ from typing import Optional
 from redis.asyncio import Redis
 
 from ..core.exceptions import CacheError
-from ..core.metrics import cache_hits
-from ..core.metrics import cache_misses
+from ..core.metrics import cache_backend_hits
+from ..core.metrics import cache_backend_misses
 
 
 class CacheService:
@@ -41,9 +41,9 @@ class CacheService:
         try:
             value = await self.redis.get(key)
             if value:
-                cache_hits.labels(operation="cache_get").inc()
+                cache_backend_hits.inc()
             else:
-                cache_misses.labels(operation="cache_get").inc()
+                cache_backend_misses.inc()
             return str(value) if value else None
         except Exception as e:
             raise CacheError("get", key, e) from e
