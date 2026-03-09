@@ -3,7 +3,7 @@
 ## Overview
 This test suite is organized into **Integration Tests** and **Unit Tests** to clearly separate concerns and strengthen test coverage for the blogcache API.
 
-**Test Coverage:** 86% (25+ tests)
+**Test count:** **53 tests** (32 integration, 21 unit). Coverage is collected on each run (see *Run with Coverage* below); treat reported percentage as an indication rather than a fixed number, as it may change with the codebase.
 
 ## Directory Structure
 
@@ -13,13 +13,15 @@ tests/
 ├── integration/                   # Tests requiring external dependencies
 │   ├── test_cache_aside.py       # Cache-Aside pattern with Redis + PostgreSQL
 │   ├── test_crud_api.py          # CRUD operations via REST API
-│   ├── test_atomic_views.py     # Atomic view counter & race conditions
-│   ├── test_validation_api.py   # Input validation via API
-│   └── test_api_endpoints.py    # Health check, docs, root redirect
+│   ├── test_atomic_views.py      # Atomic view counter & race conditions
+│   ├── test_validation_api.py    # Input validation via API
+│   ├── test_api_endpoints.py     # Health check, docs, root redirect, metrics
+│   └── test_rate_limiting.py     # Rate limits (e.g. POST 10/min)
 └── unit/                          # Tests for isolated business logic
     ├── test_schemas.py           # Pydantic schema validation
+    ├── test_dto.py               # PostDTO conversion
+    ├── test_config.py            # Settings and validation
     └── test_post_service.py      # PostService business logic
-
 ```
 
 ## Integration Tests (tests/integration/)
@@ -46,9 +48,13 @@ Integration tests verify the **entire system working together** with real depend
 **Key Tests:**
 - `test_create_post` — POST /posts/ creates new post
 - `test_get_post` — GET /posts/{id} retrieves post
+- `test_get_nonexistent_post` — GET missing post returns 404
 - `test_update_post` — PUT /posts/{id} updates post
 - `test_update_post_partial` — Partial updates work correctly
+- `test_update_nonexistent_post` — PUT missing post returns 404
 - `test_delete_post` — DELETE /posts/{id} removes post
+- `test_delete_nonexistent_post` — DELETE missing post returns 404
+- `test_list_posts` — GET /posts/ returns list
 - `test_list_posts_pagination` — GET /posts/ with skip/limit
 
 **Why Integration:** Tests HTTP layer + service layer + database layer
@@ -77,8 +83,11 @@ Integration tests verify the **entire system working together** with real depend
 
 **Key Tests:**
 - `test_create_post_empty_title` — Rejects empty title (422)
+- `test_create_post_empty_content` — Rejects empty content (422)
 - `test_create_post_title_too_long` — Rejects title > 200 chars (422)
-- `test_update_post_empty_data` — Empty update does nothing
+- `test_create_post_missing_fields` — Rejects missing required fields (422)
+- `test_update_post_empty_data` — Empty update body handled
+- `test_update_post_title_too_long` — Rejects title > 200 chars on update (422)
 - `test_invalid_post_id_format` — Invalid ID format returns 422
 
 **Why Integration:** Tests FastAPI validation + Pydantic schemas together
@@ -92,8 +101,21 @@ Integration tests verify the **entire system working together** with real depend
 - `test_health_check` — GET /health returns healthy status
 - `test_root_redirect_to_docs` — GET / redirects to /docs
 - `test_openapi_docs_available` — OpenAPI docs accessible
+- `test_openapi_json_available` — OpenAPI JSON schema accessible
+- `test_health_check_unhealthy_redis` — Health reflects Redis down (503)
+- `test_metrics_endpoint` — GET /metrics returns Prometheus metrics
 
 **Why Integration:** Tests FastAPI routing + application setup
+
+---
+
+### test_rate_limiting.py
+**Purpose:** Validate rate limits (e.g. POST 10/minute)
+
+**Key Tests:**
+- `test_rate_limit_create_post` — 11th POST within a minute returns 429
+
+**Why Integration:** Requires app and rate limiter state
 
 ---
 
@@ -108,10 +130,39 @@ Unit tests verify **isolated business logic** without external dependencies (moc
 - `test_post_create_valid` — Valid data passes
 - `test_post_create_empty_title` — Empty title raises ValidationError
 - `test_post_create_title_too_long` — Title > 200 chars raises ValidationError
+- `test_post_create_empty_content` — Empty content raises ValidationError
 - `test_post_update_partial` — Partial updates work
-- `test_post_update_empty` — Empty update is valid
+- `test_post_update_full` — Full update works
+- `test_post_update_title_too_long` — Title > 200 chars on update raises ValidationError
+- `test_post_update_empty` — Empty update body is valid
 
 **Why Unit:** Tests Pydantic schemas in isolation (no DB/Redis/API)
+
+---
+
+### test_dto.py
+**Purpose:** Validate PostDTO conversion to/from model
+
+**Key Tests:**
+- `test_post_dto_from_model` — DTO built correctly from Post model
+- `test_post_dto_to_dict` — DTO serializes to dict
+
+**Why Unit:** Tests DTO layer in isolation
+
+---
+
+### test_config.py
+**Purpose:** Validate settings and config validation
+
+**Key Tests:**
+- `test_config_validates_secret_key_in_production` — Default secret rejected when not debug
+- `test_config_allows_default_secret_in_debug` — Default secret allowed in debug
+- `test_config_validates_postgres_host` — Empty POSTGRES_HOST raises
+- `test_config_validates_postgres_db` — Empty POSTGRES_DB raises
+- `test_config_validates_redis_host` — Empty REDIS_HOST raises
+- `test_config_validates_redis_port_range` — Invalid REDIS_PORT raises
+
+**Why Unit:** Tests pydantic-settings without real DB/Redis
 
 ---
 
@@ -236,7 +287,13 @@ Tests run automatically in GitHub Actions:
     docker compose run --rm app pytest --cov=src/blogcache
 ```
 
-**Newman/Postman tests** also run in CI (17 requests, 38 assertions).
+Pytest runs with coverage; **Newman/Postman** collection runs in a separate workflow (see below).
+
+---
+
+## Postman Collection (postman_collection.json)
+
+The repository includes **postman_collection.json** (and **postman_environment.json**) for optional API testing via Postman or Newman. The collection provides a set of requests (e.g. CRUD, health, cache scenarios) with assertions that can be run manually in the Postman UI or in CI via Newman. It complements the pytest suite by offering a portable, UI-friendly way to hit the API. For import steps, variables, and Newman usage, see **POSTMAN_GUIDE.md** in the project root. The API Tests workflow (`.github/workflows/api-tests.yml`) runs this collection against the running app.
 
 ---
 

@@ -8,7 +8,7 @@
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat&logo=redis&logoColor=white)
 ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-D71F00?style=flat&logo=sqlalchemy&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker&logoColor=white)
-![Pytest](https://img.shields.io/badge/Pytest-83%25_coverage-0A9EDC?style=flat&logo=pytest&logoColor=white)
+![Pytest](https://img.shields.io/badge/Pytest-53_tests-0A9EDC?style=flat&logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat)
 
 ---
@@ -33,7 +33,7 @@ High-performance blog API built with **FastAPI** and **Redis caching** to optimi
 - 📝 **Structured logging** with Loguru (rotation + compression)
 - 🔧 **Alembic migrations** for database version control
 - 🐳 **Docker Compose** setup (PostgreSQL + Redis)
-- 🧪 **53 tests** with 83% coverage (29 integration + 24 unit tests)
+- 🧪 **53 tests** (32 integration, 21 unit); coverage run on CI (see tests/README.md)
 - 📚 **Auto-generated OpenAPI docs** at `/docs`
 
 ### 🏗️ Architecture
@@ -203,7 +203,7 @@ poetry run uvicorn blogcache.main:app --reload
 docker-compose -f docker-compose.local.yml run --rm app pytest --cov=src/blogcache --cov-report=html
 
 # Run specific test file
-docker-compose -f docker-compose.local.yml run --rm app pytest tests/test_cache.py -v
+docker-compose -f docker-compose.local.yml run --rm app pytest tests/integration/test_cache_aside.py -v
 ```
 
 #### Locally:
@@ -218,12 +218,12 @@ poetry run pytest --cov=src/blogcache --cov-report=html
 open htmlcov/index.html
 ```
 
-**Test coverage:** 83% (53 tests passing)
+**Test count:** 53 tests (32 integration, 21 unit). Coverage is reported on each run (exact percentage may vary).
 
 **Test structure:**
-- `integration/` — 29 tests for Cache-Aside, CRUD API, atomic views, validation
-- `unit/` — 24 tests for schemas, DTOs, services, config, health checks, metrics
-- See `tests/README.md` for detailed documentation
+- `integration/` — 32 tests: Cache-Aside, CRUD API, atomic views, validation, API endpoints, rate limiting
+- `unit/` — 21 tests: schemas, DTOs, services, config
+- See `tests/README.md` for detailed documentation. Optional: `postman_collection.json` for Postman/Newman API tests (see POSTMAN_GUIDE.md).
 
 ### 🗄️ Database Migrations
 
@@ -289,8 +289,8 @@ blogcache/
 │   ├── repositories/     # Data access layer (PostRepository)
 │   └── main.py           # Application entry point
 ├── tests/
-│   ├── integration/      # 29 integration tests (API, cache, DB)
-│   ├── unit/             # 24 unit tests (schemas, DTOs, services)
+│   ├── integration/      # 32 integration tests (API, cache, DB, rate limiting)
+│   ├── unit/             # 21 unit tests (schemas, DTOs, services, config)
 │   └── README.md         # Test documentation
 ├── alembic/              # Database migrations
 ├── scripts/              # Docker entrypoint scripts
@@ -311,7 +311,7 @@ blogcache/
 - **Structured Logging** — Loguru with rotation (10MB, 7 days, zip)
 - **Observability** — Prometheus metrics (cache hits, DB queries, request duration)
 - **Rate Limiting** — Protection against abuse (slowapi)
-- **Testing** — 53 tests (29 integration + 24 unit) with 83% coverage
+- **Testing** — 53 tests (32 integration, 21 unit); coverage run on CI
 
 ---
 
@@ -335,7 +335,7 @@ blogcache/
 - 📝 **Структурированное логирование** с Loguru (ротация + сжатие)
 - 🔧 **Миграции Alembic** для версионирования БД
 - 🐳 **Docker Compose** (PostgreSQL + Redis)
-- 🧪 **53 теста** с покрытием 83% (29 интеграционных + 24 unit тестов)
+- 🧪 **53 теста** (32 интеграционных, 21 unit); покрытие считается при каждом запуске (см. tests/README.md)
 - 📚 **Автогенерация OpenAPI документации** на `/docs`
 
 ### 🏗️ Архитектура
@@ -505,7 +505,7 @@ poetry run uvicorn blogcache.main:app --reload
 docker-compose -f docker-compose.local.yml run --rm app pytest --cov=src/blogcache --cov-report=html
 
 # Запуск конкретного файла тестов
-docker-compose -f docker-compose.local.yml run --rm app pytest tests/test_cache.py -v
+docker-compose -f docker-compose.local.yml run --rm app pytest tests/integration/test_cache_aside.py -v
 ```
 
 #### Локально:
@@ -520,12 +520,12 @@ poetry run pytest --cov=src/blogcache --cov-report=html
 open htmlcov/index.html
 ```
 
-**Покрытие тестами:** 83% (53 теста проходят)
+**Количество тестов:** 53 (32 интеграционных, 21 unit). Покрытие выводится при каждом запуске (точный процент может меняться).
 
 **Структура тестов:**
-- `integration/` — 29 тестов для Cache-Aside, CRUD API, атомарных просмотров, валидации
-- `unit/` — 24 теста для схем, DTO, сервисов, конфигурации, health checks, метрик
-- См. `tests/README.md` для подробной документации
+- `integration/` — 32 теста: Cache-Aside, CRUD API, атомарные просмотры, валидация, эндпоинты, rate limiting
+- `unit/` — 21 тест: схемы, DTO, сервисы, конфигурация
+- См. `tests/README.md` для подробной документации. Опционально: `postman_collection.json` для тестов API через Postman/Newman (см. POSTMAN_GUIDE.md).
 
 ### 🗄️ Миграции базы данных
 
@@ -591,8 +591,8 @@ blogcache/
 │   ├── repositories/     # Слой доступа к данным (PostRepository)
 │   └── main.py           # Точка входа приложения
 ├── tests/
-│   ├── integration/      # 29 интеграционных тестов (API, кеш, БД)
-│   ├── unit/             # 24 unit теста (схемы, DTO, сервисы)
+│   ├── integration/      # 32 интеграционных теста (API, кеш, БД, rate limiting)
+│   ├── unit/             # 21 unit тест (схемы, DTO, сервисы, конфигурация)
 │   └── README.md         # Документация тестов
 ├── alembic/              # Миграции БД
 ├── scripts/              # Скрипты для Docker
@@ -613,7 +613,7 @@ blogcache/
 - **Структурированное логирование** — Loguru с ротацией (10MB, 7 дней, zip)
 - **Observability** — Метрики Prometheus (попадания в кеш, запросы к БД, длительность запросов)
 - **Rate Limiting** — Защита от злоупотреблений (slowapi)
-- **Тестирование** — 53 теста (29 интеграционных + 24 unit) с покрытием 83%
+- **Тестирование** — 53 теста (32 интеграционных, 21 unit); покрытие считается в CI
 
 ---
 
