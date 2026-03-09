@@ -20,6 +20,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from .api import posts
+from .core.background_tasks import wait_all
 from .core.config import settings
 from .core.database import engine
 from .core.database import redis_client
@@ -59,6 +60,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     log.info("Shutting down {} application", settings.app_name)
+
+    await wait_all()
+    log.info("✓ Background tasks finished")
 
     await engine.dispose()
     log.info("✓ Database connections closed")

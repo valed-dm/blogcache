@@ -5,6 +5,7 @@ from typing import Optional
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.background_tasks import register
 from ..core.exceptions import CacheError
 from ..core.logging import log
 from ..core.metrics import cache_hits
@@ -60,7 +61,10 @@ class PostService:
         if cached:
             cache_hits.labels(operation="get_post").inc()
             log.debug("Cache hit for post_id={}", post_id)
-            asyncio.create_task(self._increment_views_in_background(post_id, client_ip))
+            task = asyncio.create_task(
+                self._increment_views_in_background(post_id, client_ip)
+            )
+            register(task)
             return PostResponse(**json.loads(cached))
 
         cache_misses.labels(operation="get_post").inc()
@@ -112,17 +116,14 @@ class PostService:
     async def _increment_views_in_background(
         self, post_id: int, client_ip: str
     ) -> None:
-        """Increment views atomically if unique and invalidate cache"""
+        """Increment views atomically if unique and invalidate cache.
+        Uses shared AsyncSessionLocal; task is registered for graceful shutdown."""
         try:
             should_increment = await self._should_increment_view(post_id, client_ip)
             if not should_increment:
                 return
 
-            from sqlalchemy.ext.asyncio import async_sessionmaker
-
-            from ..core.database import engine
-
-            AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+            from ..core.database import AsyncSessionLocal
 
             async with AsyncSessionLocal() as session:
                 repo = PostRepository(session)
