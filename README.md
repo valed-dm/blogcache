@@ -248,18 +248,20 @@ CREATE TABLE posts (
     id SERIAL PRIMARY KEY,
     title VARCHAR(200) NOT NULL,
     content TEXT NOT NULL,
-    author VARCHAR(100) NOT NULL,
-    views INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    views INTEGER DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
 );
 
-CREATE INDEX idx_posts_created_at ON posts(created_at DESC);
+CREATE INDEX ix_posts_id ON posts(id);
+CREATE INDEX ix_posts_created_at ON posts(created_at DESC);
+CREATE INDEX ix_posts_views ON posts(views DESC);
 ```
 
 **Indexes:**
 - `PRIMARY KEY (id)` — Fast lookups by ID
-- `idx_posts_created_at` — Optimized for sorting by date
+- `ix_posts_created_at` — Optimized for sorting by date
+- `ix_posts_views` — Optimized for sorting by view count
 
 ### 🔒 Error Handling
 - **404 Not Found** — Post doesn't exist (PostNotFoundError)
@@ -548,18 +550,20 @@ CREATE TABLE posts (
     id SERIAL PRIMARY KEY,
     title VARCHAR(200) NOT NULL,
     content TEXT NOT NULL,
-    author VARCHAR(100) NOT NULL,
-    views INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    views INTEGER DEFAULT 0 NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
 );
 
-CREATE INDEX idx_posts_created_at ON posts(created_at DESC);
+CREATE INDEX ix_posts_id ON posts(id);
+CREATE INDEX ix_posts_created_at ON posts(created_at DESC);
+CREATE INDEX ix_posts_views ON posts(views DESC);
 ```
 
 **Индексы:**
 - `PRIMARY KEY (id)` — Быстрый поиск по ID
-- `idx_posts_created_at` — Оптимизация сортировки по дате
+- `ix_posts_created_at` — Оптимизация сортировки по дате
+- `ix_posts_views` — Оптимизация сортировки по просмотрам
 
 ### 🔒 Обработка ошибок
 - **404 Not Found** — Пост не существует (PostNotFoundError)
