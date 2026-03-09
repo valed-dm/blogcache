@@ -82,7 +82,10 @@ instance/
 *.pid
 docker-compose.override.yml
 .docker/
-docker-compose.local.yml
+
+# Environment files with secrets
+.env.production
+.env.staging
 
 # Redis dumps
 dump.rdb
@@ -160,7 +163,6 @@ dmypy.json
 
 # Project specific - local overrides
 docker-compose.override.yml
-*.local.yml
 
 # Temporary files
 tmp/
@@ -185,3 +187,4 @@ media/*
 !media/.gitkeep
 static/*
 !static/.gitkeep
+logs/

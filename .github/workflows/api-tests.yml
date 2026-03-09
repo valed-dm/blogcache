@@ -1,0 +1,76 @@
+name: API Tests
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Test environment'
+        type: choice
+        options:
+          - local
+          - staging
+        default: 'local'
+        required: false
+      test_collection:
+        description: 'Postman collection file'
+        type: string
+        default: 'postman_collection.json'
+        required: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start services
+        run: docker compose -f docker-compose.local.yml up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to start..."
+          sleep 20
+
+          # Check database is created
+          docker compose -f docker-compose.local.yml exec -T postgres psql -U blogcache_user -d blogcache -c "SELECT 1" || echo "Database not ready yet"
+
+          # Wait for API to be ready
+          for i in {1..30}; do
+            if curl -f http://localhost:8000/health > /dev/null 2>&1; then
+              echo "API is ready!"
+              break
+            fi
+            echo "Waiting for API... ($i/30)"
+            sleep 2
+          done
+
+      - name: Install Newman
+        run: npm install -g newman
+
+      - name: Run Postman tests
+        run: |
+          newman run ${{ github.event.inputs.test_collection || 'postman_collection.json' }} \
+            -e postman_environment.json \
+            --reporters cli,json \
+            --reporter-json-export newman-results.json
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-results
+          path: newman-results.json
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== App logs ==="
+          docker compose -f docker-compose.local.yml logs app
+          echo "=== PostgreSQL logs ==="
+          docker compose -f docker-compose.local.yml logs postgres
+          echo "=== Redis logs ==="
+          docker compose -f docker-compose.local.yml logs redis

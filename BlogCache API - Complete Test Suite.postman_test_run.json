@@ -1,0 +1,675 @@
+{
+	"id": "965c17d3-3416-445e-a05c-2b4e6cb4646e",
+	"name": "BlogCache API - Complete Test Suite",
+	"timestamp": "2026-03-07T22:31:00.195Z",
+	"collection_id": "53004164-870ffe55-bdd9-4f49-8144-30dd40e434a8",
+	"folder_id": 0,
+	"environment_id": "0",
+	"totalPass": 38,
+	"delay": 0,
+	"persist": true,
+	"status": "finished",
+	"startedAt": "2026-03-07T22:30:59.428Z",
+	"totalFail": 0,
+	"results": [
+		{
+			"id": "7baf47b5-03cc-47b8-a85a-abbb97d5a485",
+			"name": "Health Check",
+			"url": "http://localhost:8000/health",
+			"time": 4,
+			"responseCode": {
+				"code": 200,
+				"name": "OK"
+			},
+			"tests": {
+				"Status code is 200": true,
+				"Response has correct structure": true
+			},
+			"testPassFailCounts": {
+				"Status code is 200": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Response has correct structure": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				4
+			],
+			"allTests": [
+				{
+					"Status code is 200": true,
+					"Response has correct structure": true
+				}
+			]
+		},
+		{
+			"id": "87a8394c-08f6-489a-8c3a-757e305724bd",
+			"name": "Create Post",
+			"url": "http://localhost:8000/posts/",
+			"time": 15,
+			"responseCode": {
+				"code": 201,
+				"name": "Created"
+			},
+			"tests": {
+				"Status code is 201": true,
+				"Response has post ID": true,
+				"Post has correct data": true,
+				"Response time is less than 500ms": true
+			},
+			"testPassFailCounts": {
+				"Status code is 201": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Response has post ID": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Post has correct data": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Response time is less than 500ms": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				15
+			],
+			"allTests": [
+				{
+					"Status code is 201": true,
+					"Response has post ID": true,
+					"Post has correct data": true,
+					"Response time is less than 500ms": true
+				}
+			]
+		},
+		{
+			"id": "c226f0cf-9a96-4b52-8cb2-1794943be36c",
+			"name": "Get Post by ID (First Read - Cache Miss)",
+			"url": "http://localhost:8000/posts/8",
+			"time": 18,
+			"responseCode": {
+				"code": 200,
+				"name": "OK"
+			},
+			"tests": {
+				"Status code is 200": true,
+				"Post data is correct": true,
+				"Views incremented to 1": true
+			},
+			"testPassFailCounts": {
+				"Status code is 200": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Post data is correct": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Views incremented to 1": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				18
+			],
+			"allTests": [
+				{
+					"Status code is 200": true,
+					"Post data is correct": true,
+					"Views incremented to 1": true
+				}
+			]
+		},
+		{
+			"id": "1af04fc0-c569-4ff0-a9ce-e07127923762",
+			"name": "Get Post by ID (Second Read - Cache Hit)",
+			"url": "http://localhost:8000/posts/8",
+			"time": 5,
+			"responseCode": {
+				"code": 200,
+				"name": "OK"
+			},
+			"tests": {
+				"Status code is 200": true,
+				"Response time is faster (cache hit)": true,
+				"Views still 1 (same IP)": true
+			},
+			"testPassFailCounts": {
+				"Status code is 200": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Response time is faster (cache hit)": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Views still 1 (same IP)": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				5
+			],
+			"allTests": [
+				{
+					"Status code is 200": true,
+					"Response time is faster (cache hit)": true,
+					"Views still 1 (same IP)": true
+				}
+			]
+		},
+		{
+			"id": "8e06ebc5-7c48-4545-935f-1fb1db82387c",
+			"name": "Get Post with Different IP",
+			"url": "http://localhost:8000/posts/8",
+			"time": 4,
+			"responseCode": {
+				"code": 200,
+				"name": "OK"
+			},
+			"tests": {
+				"Status code is 200": true,
+				"Views field exists": true
+			},
+			"testPassFailCounts": {
+				"Status code is 200": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Views field exists": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				4
+			],
+			"allTests": [
+				{
+					"Status code is 200": true,
+					"Views field exists": true
+				}
+			]
+		},
+		{
+			"id": "0dbf518e-1cb7-4a91-84fa-d1057df23f3f",
+			"name": "Update Post",
+			"url": "http://localhost:8000/posts/8",
+			"time": 17,
+			"responseCode": {
+				"code": 200,
+				"name": "OK"
+			},
+			"tests": {
+				"Status code is 200": true,
+				"Post updated successfully": true,
+				"Cache should be invalidated": true
+			},
+			"testPassFailCounts": {
+				"Status code is 200": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Post updated successfully": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Cache should be invalidated": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				17
+			],
+			"allTests": [
+				{
+					"Status code is 200": true,
+					"Post updated successfully": true,
+					"Cache should be invalidated": true
+				}
+			]
+		},
+		{
+			"id": "3b72b65b-96bb-4871-94d0-0b2af81d4019",
+			"name": "Verify Update (Cache Invalidated)",
+			"url": "http://localhost:8000/posts/8",
+			"time": 7,
+			"responseCode": {
+				"code": 200,
+				"name": "OK"
+			},
+			"tests": {
+				"Status code is 200": true,
+				"Updated data is returned": true
+			},
+			"testPassFailCounts": {
+				"Status code is 200": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Updated data is returned": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				7
+			],
+			"allTests": [
+				{
+					"Status code is 200": true,
+					"Updated data is returned": true
+				}
+			]
+		},
+		{
+			"id": "e92b5a77-119f-4d6a-a54f-c4217bd78c7f",
+			"name": "Partial Update (Only Title)",
+			"url": "http://localhost:8000/posts/8",
+			"time": 13,
+			"responseCode": {
+				"code": 200,
+				"name": "OK"
+			},
+			"tests": {
+				"Status code is 200": true,
+				"Only title updated": true
+			},
+			"testPassFailCounts": {
+				"Status code is 200": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Only title updated": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				13
+			],
+			"allTests": [
+				{
+					"Status code is 200": true,
+					"Only title updated": true
+				}
+			]
+		},
+		{
+			"id": "56faf302-71e4-4679-b62c-658e0948ec30",
+			"name": "Get All Posts",
+			"url": "http://localhost:8000/posts/",
+			"time": 9,
+			"responseCode": {
+				"code": 200,
+				"name": "OK"
+			},
+			"tests": {
+				"Status code is 200": true,
+				"Response is an array": true,
+				"Array contains posts": true
+			},
+			"testPassFailCounts": {
+				"Status code is 200": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Response is an array": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Array contains posts": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				9
+			],
+			"allTests": [
+				{
+					"Status code is 200": true,
+					"Response is an array": true,
+					"Array contains posts": true
+				}
+			]
+		},
+		{
+			"id": "bc811725-2976-4634-a158-4aba3e3148cd",
+			"name": "Get Posts with Pagination",
+			"url": "http://localhost:8000/posts/?skip=0&limit=2",
+			"time": 7,
+			"responseCode": {
+				"code": 200,
+				"name": "OK"
+			},
+			"tests": {
+				"Status code is 200": true,
+				"Response respects limit": true
+			},
+			"testPassFailCounts": {
+				"Status code is 200": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Response respects limit": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				7
+			],
+			"allTests": [
+				{
+					"Status code is 200": true,
+					"Response respects limit": true
+				}
+			]
+		},
+		{
+			"id": "a20a63c5-e39e-4ec9-a0e8-2649a64c16a7",
+			"name": "Delete Post",
+			"url": "http://localhost:8000/posts/8",
+			"time": 12,
+			"responseCode": {
+				"code": 204,
+				"name": "No Content"
+			},
+			"tests": {
+				"Status code is 204": true,
+				"No content returned": true
+			},
+			"testPassFailCounts": {
+				"Status code is 204": {
+					"pass": 1,
+					"fail": 0
+				},
+				"No content returned": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				12
+			],
+			"allTests": [
+				{
+					"Status code is 204": true,
+					"No content returned": true
+				}
+			]
+		},
+		{
+			"id": "fa6bdb11-0a87-40fc-bb47-1ce29a9baaf2",
+			"name": "Verify Deletion (404)",
+			"url": "http://localhost:8000/posts/8",
+			"time": 6,
+			"responseCode": {
+				"code": 404,
+				"name": "Not Found"
+			},
+			"tests": {
+				"Status code is 404": true,
+				"Error message returned": true
+			},
+			"testPassFailCounts": {
+				"Status code is 404": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Error message returned": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				6
+			],
+			"allTests": [
+				{
+					"Status code is 404": true,
+					"Error message returned": true
+				}
+			]
+		},
+		{
+			"id": "ec82a408-8331-4318-92d7-87a13d81f244",
+			"name": "Create Post with Invalid Data (Empty Title)",
+			"url": "http://localhost:8000/posts/",
+			"time": 3,
+			"responseCode": {
+				"code": 422,
+				"name": "Unprocessable Entity"
+			},
+			"tests": {
+				"Status code is 422": true,
+				"Validation error returned": true
+			},
+			"testPassFailCounts": {
+				"Status code is 422": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Validation error returned": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				3
+			],
+			"allTests": [
+				{
+					"Status code is 422": true,
+					"Validation error returned": true
+				}
+			]
+		},
+		{
+			"id": "ae0fde8a-f336-4e8e-af1b-e0e9fb02a394",
+			"name": "Create Post with Missing Fields",
+			"url": "http://localhost:8000/posts/",
+			"time": 4,
+			"responseCode": {
+				"code": 422,
+				"name": "Unprocessable Entity"
+			},
+			"tests": {
+				"Status code is 422": true,
+				"Validation error for missing fields": true
+			},
+			"testPassFailCounts": {
+				"Status code is 422": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Validation error for missing fields": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				4
+			],
+			"allTests": [
+				{
+					"Status code is 422": true,
+					"Validation error for missing fields": true
+				}
+			]
+		},
+		{
+			"id": "df046692-0f77-4d95-b45c-350da2931ece",
+			"name": "Get Non-Existent Post",
+			"url": "http://localhost:8000/posts/99999",
+			"time": 8,
+			"responseCode": {
+				"code": 404,
+				"name": "Not Found"
+			},
+			"tests": {
+				"Status code is 404": true,
+				"Not found error returned": true
+			},
+			"testPassFailCounts": {
+				"Status code is 404": {
+					"pass": 1,
+					"fail": 0
+				},
+				"Not found error returned": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				8
+			],
+			"allTests": [
+				{
+					"Status code is 404": true,
+					"Not found error returned": true
+				}
+			]
+		},
+		{
+			"id": "a2c8a65f-5c73-4daa-9e22-6f3017608495",
+			"name": "Update Non-Existent Post",
+			"url": "http://localhost:8000/posts/99999",
+			"time": 7,
+			"responseCode": {
+				"code": 404,
+				"name": "Not Found"
+			},
+			"tests": {
+				"Status code is 404": true
+			},
+			"testPassFailCounts": {
+				"Status code is 404": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				7
+			],
+			"allTests": [
+				{
+					"Status code is 404": true
+				}
+			]
+		},
+		{
+			"id": "eead3df2-97d1-4ae7-9712-669d2d39ad69",
+			"name": "Delete Non-Existent Post",
+			"url": "http://localhost:8000/posts/99999",
+			"time": 21,
+			"responseCode": {
+				"code": 404,
+				"name": "Not Found"
+			},
+			"tests": {
+				"Status code is 404": true
+			},
+			"testPassFailCounts": {
+				"Status code is 404": {
+					"pass": 1,
+					"fail": 0
+				}
+			},
+			"times": [
+				21
+			],
+			"allTests": [
+				{
+					"Status code is 404": true
+				}
+			]
+		}
+	],
+	"count": 1,
+	"totalTime": 160,
+	"collection": {
+		"requests": [
+			{
+				"id": "7baf47b5-03cc-47b8-a85a-abbb97d5a485",
+				"method": "GET"
+			},
+			{
+				"id": "87a8394c-08f6-489a-8c3a-757e305724bd",
+				"method": "POST"
+			},
+			{
+				"id": "c226f0cf-9a96-4b52-8cb2-1794943be36c",
+				"method": "GET"
+			},
+			{
+				"id": "1af04fc0-c569-4ff0-a9ce-e07127923762",
+				"method": "GET"
+			},
+			{
+				"id": "8e06ebc5-7c48-4545-935f-1fb1db82387c",
+				"method": "GET"
+			},
+			{
+				"id": "0dbf518e-1cb7-4a91-84fa-d1057df23f3f",
+				"method": "PUT"
+			},
+			{
+				"id": "3b72b65b-96bb-4871-94d0-0b2af81d4019",
+				"method": "GET"
+			},
+			{
+				"id": "e92b5a77-119f-4d6a-a54f-c4217bd78c7f",
+				"method": "PUT"
+			},
+			{
+				"id": "56faf302-71e4-4679-b62c-658e0948ec30",
+				"method": "GET"
+			},
+			{
+				"id": "bc811725-2976-4634-a158-4aba3e3148cd",
+				"method": "GET"
+			},
+			{
+				"id": "a20a63c5-e39e-4ec9-a0e8-2649a64c16a7",
+				"method": "DELETE"
+			},
+			{
+				"id": "fa6bdb11-0a87-40fc-bb47-1ce29a9baaf2",
+				"method": "GET"
+			},
+			{
+				"id": "ec82a408-8331-4318-92d7-87a13d81f244",
+				"method": "POST"
+			},
+			{
+				"id": "ae0fde8a-f336-4e8e-af1b-e0e9fb02a394",
+				"method": "POST"
+			},
+			{
+				"id": "df046692-0f77-4d95-b45c-350da2931ece",
+				"method": "GET"
+			},
+			{
+				"id": "a2c8a65f-5c73-4daa-9e22-6f3017608495",
+				"method": "PUT"
+			},
+			{
+				"id": "eead3df2-97d1-4ae7-9712-669d2d39ad69",
+				"method": "DELETE"
+			}
+		]
+	}
+}
