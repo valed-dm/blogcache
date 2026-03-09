@@ -129,6 +129,11 @@ class PostService:
                 repo = PostRepository(session)
                 await repo.increment_views(post_id)
 
+            # NOTE: Invalidating cache after view increment prioritizes consistency.
+            # Trade-off: Reduces cache effectiveness for popular posts (~50% hit rate).
+            # Alternative: Remove this deletion for eventual consistency
+            # (5min lag, 95% hit rate).
+            # Current choice: Consistency > Performance (suitable for this scale).
             try:
                 await self.cache.delete(self._cache_key(post_id))
             except CacheError as e:
