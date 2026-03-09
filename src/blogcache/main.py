@@ -7,6 +7,8 @@ including routers and lifecycle events.
 from contextlib import asynccontextmanager
 import time
 from typing import AsyncGenerator
+from typing import Awaitable
+from typing import Callable
 
 from fastapi import FastAPI
 from fastapi import Request
@@ -97,7 +99,9 @@ def create_app() -> FastAPI:
     register_exception_handlers(application)
 
     @application.middleware("http")
-    async def request_duration_middleware(request: Request, call_next):
+    async def request_duration_middleware(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Record request duration for Prometheus (method + route path template)."""
         start = time.perf_counter()
         response = await call_next(request)
