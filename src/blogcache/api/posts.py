@@ -6,13 +6,12 @@ from fastapi import Depends
 from fastapi import Request
 from fastapi import status
 from redis.asyncio import Redis
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.database import get_db
 from ..core.database import get_redis
 from ..core.exceptions import PostNotFoundError
+from ..core.rate_limit import limiter
 from ..schemas.post import PostCreate
 from ..schemas.post import PostResponse
 from ..schemas.post import PostUpdate
@@ -20,7 +19,6 @@ from ..services.post_service import PostService
 
 
 router = APIRouter(prefix="/posts", tags=["posts"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 async def get_post_service(

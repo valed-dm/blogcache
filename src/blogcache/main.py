@@ -14,10 +14,8 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
 from prometheus_client import CONTENT_TYPE_LATEST
 from prometheus_client import generate_latest
-from slowapi import Limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from .api import posts
 from .core.config import settings
@@ -26,6 +24,7 @@ from .core.database import redis_client
 from .core.exception_handlers import register_exception_handlers
 from .core.health import HealthCheckService
 from .core.logging import log
+from .core.rate_limit import limiter
 
 
 @asynccontextmanager
@@ -73,9 +72,6 @@ def create_app() -> FastAPI:
     Returns:
         The configured FastAPI application instance.
     """
-    # Initialize rate limiter
-    limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
-
     application = FastAPI(
         title=settings.app_name,
         version="0.1.0",
