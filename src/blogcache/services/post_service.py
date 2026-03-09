@@ -5,6 +5,7 @@ from typing import Optional
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.exceptions import CacheError
 from ..core.logging import log
 from ..core.metrics import cache_hits
 from ..core.metrics import cache_misses
@@ -50,8 +51,12 @@ class PostService:
         """Get post by ID with caching and unique view tracking"""
         cache_key = self._cache_key(post_id)
 
-        # Try cache first
-        cached = await self.cache.get(cache_key)
+        # Try cache first; on CacheError fall back to DB
+        try:
+            cached = await self.cache.get(cache_key)
+        except CacheError as e:
+            log.warning("Cache get failed, falling back to DB: {}", e)
+            cached = None
         if cached:
             cache_hits.labels(operation="get_post").inc()
             log.debug("Cache hit for post_id={}", post_id)
@@ -81,21 +86,28 @@ class PostService:
         dto = PostDTO.from_model(db_post)
         post_response = PostResponse(**dto.to_dict())
 
-        # Store in cache
-        await self.cache.set(cache_key, post_response.model_dump_json())
-        log.debug("Cached post_id={} with TTL={}s", post_id, self.cache.ttl)
+        # Store in cache; on failure log and still return response
+        try:
+            await self.cache.set(cache_key, post_response.model_dump_json())
+            log.debug("Cached post_id={} with TTL={}s", post_id, self.cache.ttl)
+        except CacheError as e:
+            log.warning("Cache set failed after DB read: {}", e)
 
         return post_response
 
     async def _should_increment_view(self, post_id: int, client_ip: str) -> bool:
-        """Check if view should be counted (once per IP per 24h)"""
+        """Check if view should be counted (once per IP per 24h).
+        On cache error, skip increment."""
         view_key = self._view_key(post_id, client_ip)
-
-        exists = await self.cache.exists(view_key)
-        if not exists:
-            await self.cache.set_with_expiry(view_key, "1", 86400)  # 24 hours
-            return True
-        return False
+        try:
+            exists = await self.cache.exists(view_key)
+            if not exists:
+                await self.cache.set_with_expiry(view_key, "1", 86400)  # 24 hours
+                return True
+            return False
+        except CacheError as e:
+            log.warning("Cache error in view tracking, skipping increment: {}", e)
+            return False
 
     async def _increment_views_in_background(
         self, post_id: int, client_ip: str
@@ -116,12 +128,17 @@ class PostService:
                 repo = PostRepository(session)
                 await repo.increment_views(post_id)
 
-            await self.cache.delete(self._cache_key(post_id))
+            try:
+                await self.cache.delete(self._cache_key(post_id))
+            except CacheError as e:
+                log.warning("Cache delete failed after view increment: {}", e)
             log.debug(
                 "Background view increment for post_id={} from ip={}",
                 post_id,
                 client_ip,
             )
+        except CacheError as e:
+            log.warning("Cache error in background view increment: {}", e)
         except Exception as e:
             log.error(
                 "Unexpected error incrementing views for post_id={}: {}", post_id, e
@@ -142,8 +159,11 @@ class PostService:
 
         updated_post = await self.repository.update(db_post)
 
-        await self.cache.delete(self._cache_key(post_id))
-        log.info("Updated post_id={}, invalidated cache", post_id)
+        try:
+            await self.cache.delete(self._cache_key(post_id))
+            log.info("Updated post_id={}, invalidated cache", post_id)
+        except CacheError as e:
+            log.warning("Cache invalidation failed after update: {}", e)
 
         # Convert to DTO for internal processing
         dto = PostDTO.from_model(updated_post)
@@ -153,8 +173,11 @@ class PostService:
         """Delete post and invalidate cache"""
         deleted = await self.repository.delete(post_id)
         if deleted:
-            await self.cache.delete(self._cache_key(post_id))
-            log.info("Deleted post_id={}, invalidated cache", post_id)
+            try:
+                await self.cache.delete(self._cache_key(post_id))
+                log.info("Deleted post_id={}, invalidated cache", post_id)
+            except CacheError as e:
+                log.warning("Cache invalidation failed after delete: {}", e)
             return True
 
         log.debug("Delete failed: post_id={} not found", post_id)

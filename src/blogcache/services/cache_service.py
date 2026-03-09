@@ -1,14 +1,14 @@
 """Cache service for Redis operations.
 
-This module provides a clean abstraction over Redis operations
-with error handling and logging.
+This module provides a clean abstraction over Redis operations.
+Redis failures are raised as CacheError for callers to handle or propagate.
 """
 
 from typing import Optional
 
 from redis.asyncio import Redis
 
-from ..core.logging import log
+from ..core.exceptions import CacheError
 from ..core.metrics import cache_hits
 from ..core.metrics import cache_misses
 
@@ -33,7 +33,10 @@ class CacheService:
             key: Cache key.
 
         Returns:
-            Cached value or None if not found or error occurred.
+            Cached value or None if not found.
+
+        Raises:
+            CacheError: If the Redis operation fails.
         """
         try:
             value = await self.redis.get(key)
@@ -43,10 +46,9 @@ class CacheService:
                 cache_misses.labels(operation="cache_get").inc()
             return str(value) if value else None
         except Exception as e:
-            log.warning("Cache get failed for key={}: {}", key, e)
-            return None
+            raise CacheError("get", key, e) from e
 
-    async def set(self, key: str, value: str, ttl: Optional[int] = None) -> bool:
+    async def set(self, key: str, value: str, ttl: Optional[int] = None) -> None:
         """Set value in cache with TTL.
 
         Args:
@@ -54,31 +56,27 @@ class CacheService:
             value: Value to cache.
             ttl: Time-to-live in seconds (uses default if not provided).
 
-        Returns:
-            True if successful, False otherwise.
+        Raises:
+            CacheError: If the Redis operation fails.
         """
         try:
             await self.redis.setex(key, ttl or self.ttl, value)
-            return True
         except Exception as e:
-            log.warning("Cache set failed for key={}: {}", key, e)
-            return False
+            raise CacheError("set", key, e) from e
 
-    async def delete(self, key: str) -> bool:
+    async def delete(self, key: str) -> None:
         """Delete value from cache.
 
         Args:
             key: Cache key.
 
-        Returns:
-            True if successful, False otherwise.
+        Raises:
+            CacheError: If the Redis operation fails.
         """
         try:
             await self.redis.delete(key)
-            return True
         except Exception as e:
-            log.warning("Cache delete failed for key={}: {}", key, e)
-            return False
+            raise CacheError("delete", key, e) from e
 
     async def exists(self, key: str) -> bool:
         """Check if key exists in cache.
@@ -87,15 +85,17 @@ class CacheService:
             key: Cache key.
 
         Returns:
-            True if exists, False otherwise (including on error).
+            True if exists, False otherwise.
+
+        Raises:
+            CacheError: If the Redis operation fails.
         """
         try:
             return bool(await self.redis.exists(key))
         except Exception as e:
-            log.warning("Cache exists check failed for key={}: {}", key, e)
-            return False
+            raise CacheError("exists", key, e) from e
 
-    async def set_with_expiry(self, key: str, value: str, seconds: int) -> bool:
+    async def set_with_expiry(self, key: str, value: str, seconds: int) -> None:
         """Set value with custom expiry time.
 
         Args:
@@ -103,12 +103,10 @@ class CacheService:
             value: Value to cache.
             seconds: Expiry time in seconds.
 
-        Returns:
-            True if successful, False otherwise.
+        Raises:
+            CacheError: If the Redis operation fails.
         """
         try:
             await self.redis.setex(key, seconds, value)
-            return True
         except Exception as e:
-            log.warning("Cache setex failed for key={}: {}", key, e)
-            return False
+            raise CacheError("set_with_expiry", key, e) from e
