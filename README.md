@@ -19,6 +19,14 @@
 ### Overview
 High-performance blog API built with **FastAPI** and **Redis caching** to optimize read operations for popular posts. Implements the **Cache-Aside** pattern with automatic cache invalidation.
 
+### SCREENSHOTS:
+
+[<img src="images/img_01.png" width="200"/>]()
+[<img src="images/img_03.png" width="200"/>]()
+
+[<img src="images/img_02.png" width="200"/>]()
+[<img src="images/img_04.png" width="200"/>]()
+
 ### ✨ Features
 - ✍️ **Full CRUD operations** for blog posts (Create, Read, Update, Delete)
 - 🚀 **Redis caching** with Cache-Aside pattern
