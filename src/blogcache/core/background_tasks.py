@@ -1,18 +1,18 @@
 """Registry for fire-and-forget background tasks so they can be awaited on shutdown."""
 
 import asyncio
-from typing import List
+from typing import Any
 
 
-_pending_tasks: List[asyncio.Task] = []
+_pending_tasks: list[asyncio.Task[Any]] = []
 
 
-def register(task: asyncio.Task) -> None:
+def register(task: asyncio.Task[Any]) -> None:
     """Register a background task so it can be awaited during app shutdown."""
     _pending_tasks.append(task)
 
 
-def get_pending() -> List[asyncio.Task]:
+def get_pending() -> list[asyncio.Task[Any]]:
     """Return a snapshot of currently pending tasks."""
     return list(_pending_tasks)
 
