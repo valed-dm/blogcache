@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.exceptions import DatabaseError
 from ..core.logging import log
+from ..core.metrics import db_errors
+from ..core.metrics import db_queries
 from ..models.post import Post
 
 
@@ -44,9 +46,11 @@ class PostRepository:
             self.db.add(post)
             await self.db.commit()
             await self.db.refresh(post)
+            db_queries.labels(operation="create").inc()
             return post
         except SQLAlchemyError as e:
             await self.db.rollback()
+            db_errors.labels(operation="create").inc()
             log.error("Database error creating post: {}", e)
             raise DatabaseError("create", e) from e
 
@@ -64,8 +68,12 @@ class PostRepository:
         """
         try:
             result = await self.db.execute(select(Post).where(Post.id == post_id))
-            return result.scalar_one_or_none()
+            row = result.scalar_one_or_none()
+            db_queries.labels(operation="get_by_id").inc()
+            return row
         except SQLAlchemyError as e:
+            await self.db.rollback()
+            db_errors.labels(operation="get_by_id").inc()
             log.error("Database error fetching post_id={}: {}", post_id, e)
             raise DatabaseError("select", e) from e
 
@@ -86,8 +94,12 @@ class PostRepository:
             result = await self.db.execute(
                 select(Post).order_by(Post.created_at.desc()).offset(skip).limit(limit)
             )
-            return list(result.scalars().all())
+            rows = list(result.scalars().all())
+            db_queries.labels(operation="get_all").inc()
+            return rows
         except SQLAlchemyError as e:
+            await self.db.rollback()
+            db_errors.labels(operation="get_all").inc()
             log.error("Database error fetching posts: {}", e)
             raise DatabaseError("select", e) from e
 
@@ -106,9 +118,11 @@ class PostRepository:
         try:
             await self.db.commit()
             await self.db.refresh(post)
+            db_queries.labels(operation="update").inc()
             return post
         except SQLAlchemyError as e:
             await self.db.rollback()
+            db_errors.labels(operation="update").inc()
             log.error("Database error updating post_id={}: {}", post.id, e)
             raise DatabaseError("update", e) from e
 
@@ -131,10 +145,12 @@ class PostRepository:
             deleted_id = result.scalar_one_or_none()
             if deleted_id:
                 await self.db.commit()
+                db_queries.labels(operation="delete").inc()
                 return True
             return False
         except SQLAlchemyError as e:
             await self.db.rollback()
+            db_errors.labels(operation="delete").inc()
             log.error("Database error deleting post_id={}: {}", post_id, e)
             raise DatabaseError("delete", e) from e
 
@@ -153,10 +169,12 @@ class PostRepository:
                 {"id": post_id},
             )
             await self.db.commit()
+            db_queries.labels(operation="increment_views").inc()
             # Expire all cached instances to force fresh fetch
             self.db.expire_all()
         except SQLAlchemyError as e:
             await self.db.rollback()
+            db_errors.labels(operation="increment_views").inc()
             log.error(
                 "Database error incrementing views for post_id={}: {}", post_id, e
             )
